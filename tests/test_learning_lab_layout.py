@@ -89,7 +89,12 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     app = (LAB / "src" / "app.mjs").read_text()
 
     assert 'id="execution-mode"' in html
-    assert 'step === "run" ? "Measured execution" : "Concept simulation"' in app
+    assert 'step === "run" ? "Real GPU execution" : "Concept simulation"' in app
+    assert 'from "./webgpu-runner.mjs"' in app
+    assert 'data-run-provider="browser-webgpu"' in app
+    assert "Run on this GPU" in app
+    assert "No install" in app
+    assert 'runWebGpuPaint({ pixels: 64, groupSize: state.blockSize })' in app
     assert 'fetch("/api/capabilities")' in app
     assert 'fetch("/api/run"' in app
     assert "Run on your Apple GPU" in app

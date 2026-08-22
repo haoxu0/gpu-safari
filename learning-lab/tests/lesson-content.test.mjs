@@ -39,3 +39,10 @@ test("the Triton sample teaches block programs and masked vector stores", () => 
   assert.match(CODE_SAMPLES.triton, /mask=/);
   assert.doesNotMatch(CODE_SAMPLES.triton, /if pixel|image\[pixel\]/);
 });
+
+test("the WebGPU sample connects browser workers to a masked WGSL compute shader", () => {
+  assert.match(CODE_SAMPLES.webgpu, /@compute/);
+  assert.match(CODE_SAMPLES.webgpu, /@builtin\(global_invocation_id\)/);
+  assert.match(CODE_SAMPLES.webgpu, /pixel < n_pixels/);
+  assert.match(CODE_SAMPLES.webgpu, /output\[pixel\]/);
+});
