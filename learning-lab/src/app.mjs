@@ -22,6 +22,7 @@ const STEP_LABELS = ["See", "Experiment", "Race", "Code"];
 const state = {
   lesson: createLessonState(),
   blockSize: 8,
+  experimentPixels: 62,
   racePixels: 64,
   codeTab: "webgpu",
   frame: sceneFrameState(),
@@ -65,6 +66,15 @@ function formatPixelCount(pixels) {
   return new Intl.NumberFormat("en-US").format(pixels);
 }
 
+function scenePixelCount() {
+  return currentStep() === "experiment" ? state.experimentPixels : TOTAL_PIXELS;
+}
+
+function selectedWorkerForScene(totalPixels = scenePixelCount()) {
+  const selected = state.lesson.selectedWorker;
+  return selected !== null && selected < totalPixels ? selected : null;
+}
+
 function renderProgress() {
   elements.progress.innerHTML = STEP_LABELS.map((label, index) => {
     const status = index < state.lesson.stepIndex ? "complete" : index === state.lesson.stepIndex ? "current" : "upcoming";
@@ -74,30 +84,32 @@ function renderProgress() {
 }
 
 function buildVisualFrames() {
-  const timeline = buildProcessingTimeline({ totalPixels: TOTAL_PIXELS, groupSize: state.blockSize });
-  const allPixels = Array.from({ length: TOTAL_PIXELS }, (_, id) => id);
+  const totalPixels = scenePixelCount();
+  const selectedWorker = selectedWorkerForScene(totalPixels);
+  const timeline = buildProcessingTimeline({ totalPixels, groupSize: state.blockSize });
+  const allPixels = Array.from({ length: totalPixels }, (_, id) => id);
   const cpuPainted = [];
   const gpuPainted = [];
   const cpuFrames = timeline.cpu.map((frame) => {
     cpuPainted.push(...frame.pixelIds);
-    return sceneFrameState({ cpuPainted, phase: "cpu", selectedWorker: state.lesson.selectedWorker });
+    return sceneFrameState({ cpuPainted, phase: "cpu", selectedWorker });
   });
   const gpuFrames = timeline.gpu.map((frame) => {
     if (frame.phase === "work") gpuPainted.push(...frame.pixelIds);
-    return sceneFrameState({ cpuPainted: allPixels, gpuPainted, phase: frame.phase, selectedWorker: state.lesson.selectedWorker });
+    return sceneFrameState({ cpuPainted: allPixels, gpuPainted, phase: frame.phase, selectedWorker });
   });
   return [...cpuFrames, ...gpuFrames, sceneFrameState({
     cpuPainted: allPixels,
     gpuPainted: allPixels,
     phase: "complete",
-    selectedWorker: state.lesson.selectedWorker,
+    selectedWorker,
   })];
 }
 
 function reducedFrames() {
   const frames = buildVisualFrames();
   return [
-    sceneFrameState(),
+    sceneFrameState({ selectedWorker: selectedWorkerForScene() }),
     frames.find((frame) => frame.phase === "cpu"),
     frames.find((frame) => frame.phase === "submit"),
     frames.find((frame) => frame.phase === "work"),
@@ -114,9 +126,13 @@ function seeMarkup() {
 }
 
 function experimentMarkup() {
+  const groupCount = Math.ceil(state.experimentPixels / state.blockSize);
+  const launchedWorkers = groupCount * state.blockSize;
+  const maskedWorkers = launchedWorkers - state.experimentPixels;
   return `<div class="copy-column compact-copy visual-step-copy">
-    <p class="lede">Change the number of workers in each wave. The same 64 jobs reorganize immediately.</p>
-    <div class="experiment-controls"><label for="block-size"><span>Workers per wave</span><strong>${state.blockSize}</strong></label><input id="block-size" type="range" min="0" max="3" step="1" value="${[4, 8, 16, 32].indexOf(state.blockSize)}" aria-valuetext="${state.blockSize} workers per wave"><div class="group-size-labels" aria-hidden="true"><span>4</span><span>8</span><span>16</span><span>32</span></div><button class="button button-primary" type="button" data-play-processing>▶ Replay with ${state.blockSize}</button></div>
+    <p class="lede">Try a 62-pixel edge case. Change the worker-group size and watch overflow workers become masked.</p>
+    <div class="experiment-controls"><label for="block-size"><span>Workers per group</span><strong>${state.blockSize}</strong></label><input id="block-size" type="range" min="0" max="3" step="1" value="${[4, 8, 16, 32].indexOf(state.blockSize)}" aria-valuetext="${state.blockSize} workers per group"><div class="group-size-labels" aria-hidden="true"><span>4</span><span>8</span><span>16</span><span>32</span></div><button class="button button-primary" type="button" data-play-processing>▶ Replay with ${state.blockSize}</button></div>
+    <dl class="experiment-stats"><div><dt>Pixels</dt><dd>${state.experimentPixels}</dd></div><div><dt>Workgroups</dt><dd>${groupCount}</dd></div><div><dt>Active workers</dt><dd>${state.experimentPixels}</dd></div><div><dt>Masked overflow</dt><dd>${maskedWorkers}</dd></div></dl>
   </div>`;
 }
 
@@ -179,15 +195,17 @@ function raceStatusMarkup(result) {
 
 function renderScene() {
   if (elements.panel.hidden) return;
-  elements.scene.innerHTML = renderProcessingScene({ totalPixels: TOTAL_PIXELS, groupSize: state.blockSize, selectedWorker: state.lesson.selectedWorker, frame: state.frame });
+  const totalPixels = scenePixelCount();
+  elements.scene.innerHTML = renderProcessingScene({ totalPixels, groupSize: state.blockSize, selectedWorker: selectedWorkerForScene(totalPixels), frame: state.frame });
   elements.status.textContent = elements.scene.querySelector("[data-scene-status]")?.textContent ?? "Processing view ready";
   elements.scene.querySelectorAll("[data-gpu-worker]").forEach((worker) => {
     const activate = () => {
       const workerId = Number(worker.dataset.gpuWorker);
-      if (workerId >= TOTAL_PIXELS) return;
-      state.lesson = selectWorker(state.lesson, workerId, TOTAL_PIXELS);
+      if (workerId >= totalPixels) return;
+      state.lesson = selectWorker(state.lesson, workerId, totalPixels);
       state.frame = sceneFrameState({ ...state.frame, selectedWorker: workerId });
       if (currentStep() === "code") renderStep(); else renderScene();
+      elements.scene.querySelector(`[data-gpu-worker="${workerId}"]`)?.focus();
     };
     worker.addEventListener("click", activate);
     worker.addEventListener("keydown", (event) => {
@@ -220,7 +238,7 @@ function playProcessing() {
 function resetProcessing() {
   playback.reset();
   state.reducedFrameIndex = 0;
-  state.frame = sceneFrameState({ selectedWorker: state.lesson.selectedWorker });
+  state.frame = sceneFrameState({ selectedWorker: selectedWorkerForScene() });
   renderScene();
 }
 

@@ -73,6 +73,16 @@ def test_visual_lesson_supports_four_steps_keyboard_and_reduced_motion():
     assert ".processing-lanes { grid-template-columns: 1fr; }" in css
 
 
+def test_experiment_exposes_group_counts_and_a_real_masked_edge_case():
+    app = (LAB / "src" / "app.mjs").read_text()
+
+    assert "experimentPixels: 62" in app
+    assert "Workgroups" in app
+    assert "Active workers" in app
+    assert "Masked overflow" in app
+    assert "overflow workers become masked" in app
+
+
 def test_triton_caption_describes_vectorized_program_work():
     content = (LAB / "src" / "lesson-content.mjs").read_text()
 
