@@ -44,8 +44,17 @@ export function runCpuPaint({
 }
 
 export function buildRaceSummary({ cpu, gpu, pixels }) {
-  const cpuMs = cpu.measurements[0].value;
-  const gpuMs = gpu.measurements[0].value;
+  if (!cpu?.correctness?.passed || !gpu?.correctness?.passed) {
+    throw new Error("Both race paths must produce correct output before comparison");
+  }
+  if (cpu?.output?.checksum !== gpu?.output?.checksum) {
+    throw new Error("CPU and GPU output checksums must match before comparison");
+  }
+  const cpuMs = cpu.measurements?.[0]?.value;
+  const gpuMs = gpu.measurements?.[0]?.value;
+  if (![cpuMs, gpuMs].every((value) => Number.isFinite(value) && value >= 0)) {
+    throw new Error("Both race paths must provide a finite timing");
+  }
   const timerResolutionMs = cpu.measurements[0].resolution_ms ?? FALLBACK_TIMER_RESOLUTION_MS;
   const unresolved = [
     ...(cpuMs <= timerResolutionMs ? ["cpu"] : []),
