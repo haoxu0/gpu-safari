@@ -1,21 +1,15 @@
 import {
   LESSON_STEPS,
   advanceLesson,
-  buildPixelWork,
   createLessonState,
-  nextGridIndex,
-  recordPrediction,
   retreatLesson,
+  selectWorker,
 } from "./lesson-model.mjs";
-import {
-  CODE_SAMPLES,
-  getLessonCopy,
-  getPredictionFeedback,
-} from "./lesson-content.mjs";
-import {
-  runWebGpuPaint,
-  withWebGpuCapability,
-} from "./webgpu-runner.mjs";
+import { CODE_SAMPLES, getLessonCopy } from "./lesson-content.mjs";
+import { buildProcessingTimeline } from "./simulation-timeline.mjs";
+import { renderProcessingScene, sceneFrameState } from "./processing-scene.mjs";
+import { createPlaybackController } from "./playback-controller.mjs";
+import { runWebGpuPaint, withWebGpuCapability } from "./webgpu-runner.mjs";
 import {
   RACE_WORKLOADS,
   buildRaceSummary,
@@ -23,14 +17,15 @@ import {
   runCpuPaint,
 } from "./race-runner.mjs";
 
-const STEP_LABELS = ["Story", "Predict", "Simulate", "Code", "Run", "Explain", "Challenge"];
+const TOTAL_PIXELS = 64;
+const STEP_LABELS = ["See", "Experiment", "Race", "Code"];
 const state = {
   lesson: createLessonState(),
-  simulationTimers: [],
-  simulationHasRun: false,
-  codeTab: "python",
   blockSize: 8,
   racePixels: 64,
+  codeTab: "webgpu",
+  frame: sceneFrameState(),
+  reducedFrameIndex: 0,
   capabilities: null,
   executionResult: null,
   executionError: null,
@@ -44,103 +39,84 @@ const elements = {
   count: document.querySelector("#step-count"),
   mode: document.querySelector("#execution-mode"),
   progress: document.querySelector("#progress-list"),
-  simulation: document.querySelector("#simulation-panel"),
-  grid: document.querySelector("#pixel-grid"),
-  inspector: document.querySelector("#thread-inspector"),
-  status: document.querySelector("#simulation-status"),
-  simulationHeading: document.querySelector("#simulation-heading"),
-  run: document.querySelector("#run-simulation"),
-  reset: document.querySelector("#reset-simulation"),
+  panel: document.querySelector("#processing-panel"),
+  scene: document.querySelector("#processing-scene"),
+  status: document.querySelector("#processing-status"),
 };
+
+const playback = createPlaybackController({
+  schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  cancel: (id) => window.clearTimeout(id),
+  onFrame: (frame) => {
+    state.frame = frame;
+    renderScene();
+  },
+});
 
 function currentStep() {
   return LESSON_STEPS[state.lesson.stepIndex];
 }
 
-function clearSimulationTimers() {
-  state.simulationTimers.forEach(window.clearTimeout);
-  state.simulationTimers = [];
+function escapeHtml(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function formatPixelCount(pixels) {
+  return new Intl.NumberFormat("en-US").format(pixels);
 }
 
 function renderProgress() {
   elements.progress.innerHTML = STEP_LABELS.map((label, index) => {
-    const status = index < state.lesson.stepIndex
-      ? "complete"
-      : index === state.lesson.stepIndex
-        ? "current"
-        : "upcoming";
+    const status = index < state.lesson.stepIndex ? "complete" : index === state.lesson.stepIndex ? "current" : "upcoming";
     const marker = status === "complete" ? "✓" : String(index + 1).padStart(2, "0");
-    return `<li class="progress-item progress-${status}" ${status === "current" ? 'aria-current="step"' : ""}>
-      <span class="progress-marker">${marker}</span><span>${label}</span>
-    </li>`;
+    return `<li class="progress-item progress-${status}" ${status === "current" ? 'aria-current="step"' : ""}><span class="progress-marker">${marker}</span><span>${label}</span></li>`;
   }).join("");
 }
 
-function storyMarkup() {
-  return `<div class="copy-column">
-    <p class="lede">Imagine an 8 × 8 picture with no color yet. One CPU worker could visit all 64 pixels in sequence—or we could give every pixel its own GPU worker.</p>
-    <div class="story-comparison" aria-label="One sequential worker compared with many parallel workers">
-      <article class="story-card">
-        <span class="story-number">1</span>
-        <div><strong>CPU worker</strong><p>Walks across the picture one pixel at a time.</p></div>
-      </article>
-      <span class="versus" aria-hidden="true">versus</span>
-      <article class="story-card story-card-accent">
-        <span class="story-number">64</span>
-        <div><strong>GPU workers</strong><p>Each receives one pixel and the same simple instruction.</p></div>
-      </article>
-    </div>
-    <p class="learning-note"><strong>Notice:</strong> GPUs are useful when lots of independent data needs the same operation.</p>
+function buildVisualFrames() {
+  const timeline = buildProcessingTimeline({ totalPixels: TOTAL_PIXELS, groupSize: state.blockSize });
+  const allPixels = Array.from({ length: TOTAL_PIXELS }, (_, id) => id);
+  const cpuPainted = [];
+  const gpuPainted = [];
+  const cpuFrames = timeline.cpu.map((frame) => {
+    cpuPainted.push(...frame.pixelIds);
+    return sceneFrameState({ cpuPainted, phase: "cpu", selectedWorker: state.lesson.selectedWorker });
+  });
+  const gpuFrames = timeline.gpu.map((frame) => {
+    if (frame.phase === "work") gpuPainted.push(...frame.pixelIds);
+    return sceneFrameState({ cpuPainted: allPixels, gpuPainted, phase: frame.phase, selectedWorker: state.lesson.selectedWorker });
+  });
+  return [...cpuFrames, ...gpuFrames, sceneFrameState({
+    cpuPainted: allPixels,
+    gpuPainted: allPixels,
+    phase: "complete",
+    selectedWorker: state.lesson.selectedWorker,
+  })];
+}
+
+function reducedFrames() {
+  const frames = buildVisualFrames();
+  return [
+    sceneFrameState(),
+    frames.find((frame) => frame.phase === "cpu"),
+    frames.find((frame) => frame.phase === "submit"),
+    frames.find((frame) => frame.phase === "work"),
+    frames.at(-1),
+  ];
+}
+
+function seeMarkup() {
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return `<div class="copy-column compact-copy visual-step-copy">
+    <p class="lede">Watch the same 64 jobs move through two different processing paths.</p>
+    <div class="scene-controls"><button class="button button-quiet" type="button" data-reset-processing>Reset</button><button class="button button-primary" type="button" data-play-processing>${reducedMotion ? "Next phase" : "▶ Play processing"}</button></div>
   </div>`;
 }
 
-function predictionMarkup() {
-  const selected = state.lesson.prediction;
-  const feedback = selected ? `<p class="feedback">${getPredictionFeedback(selected)}</p>` : "";
-  return `<div class="copy-column">
-    <p class="lede">Both teams must color exactly 64 pixels. Before seeing the work map, choose what you expect.</p>
-    <fieldset class="prediction-options">
-      <legend class="sr-only">Which approach will finish first?</legend>
-      ${[
-        ["cpu", "One CPU worker", "A powerful worker handles every pixel in order."],
-        ["gpu", "Many GPU workers", "Small workers each handle one independent pixel."],
-        ["same", "About the same", "The total amount of coloring work is unchanged."],
-      ].map(([value, title, detail]) => `<button type="button" class="prediction-card ${selected === value ? "is-selected" : ""}" data-prediction="${value}" aria-pressed="${selected === value}">
-        <span class="prediction-radio" aria-hidden="true"></span><span><strong>${title}</strong><small>${detail}</small></span>
-      </button>`).join("")}
-    </fieldset>
-    ${feedback}
-  </div>`;
-}
-
-function simulationMarkup() {
-  return `<div class="copy-column compact-copy">
-    <p class="lede">Every square below is both a pixel and a job. Run the concept simulation to watch 64 threads claim 64 jobs.</p>
-    <p class="learning-note"><strong>This is not a benchmark.</strong> Animation time helps us see assignment order; it does not represent GPU execution speed.</p>
-  </div>`;
-}
-
-function codeMarkup() {
-  const tabs = ["python", "pytorch", "webgpu", "triton", "cuda"];
-  return `<div class="copy-column code-column">
-    <p class="lede">The operation stays the same as we move closer to the hardware. What changes is how explicitly we describe the workers.</p>
-    <div class="code-tabs" role="group" aria-label="Implementation level">
-      ${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${({ pytorch: "PyTorch", webgpu: "WebGPU" })[tab] ?? tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
-    </div>
-    <pre class="code-panel" tabindex="0"><code>${escapeHtml(CODE_SAMPLES[state.codeTab])}</code></pre>
-    <p class="code-caption">${codeCaption(state.codeTab)}</p>
-  </div>`;
-}
-
-function explainMarkup() {
-  return `<div class="copy-column">
-    <p class="lede">A GPU kernel is one instruction run by many workers. Three ideas connect the code to the picture.</p>
-    <div class="concept-grid">
-      <article><span class="concept-icon">ID</span><strong>Identity</strong><p>Each worker asks, “Which thread am I?”</p></article>
-      <article><span class="concept-icon">→</span><strong>Destination</strong><p>The thread ID maps to one pixel in memory.</p></article>
-      <article><span class="concept-icon">⌁</span><strong>Boundary</strong><p>A mask stops extra workers from touching pixels outside the image.</p></article>
-    </div>
-    <div class="mapping-strip"><span>Metal <code>grid + thread_position</code></span><span aria-hidden="true">↔</span><span>Triton <code>program_id + arange</code></span><span aria-hidden="true">↔</span><span>CUDA <code>blockIdx + threadIdx</code></span><small>Metal dispatches threads in threadgroups; a Triton program processes vector lanes; CUDA organizes individual threads into blocks. They solve the same indexing problem with different execution models.</small></div>
+function experimentMarkup() {
+  return `<div class="copy-column compact-copy visual-step-copy">
+    <p class="lede">Change the number of workers in each wave. The same 64 jobs reorganize immediately.</p>
+    <div class="experiment-controls"><label for="block-size"><span>Workers per wave</span><strong>${state.blockSize}</strong></label><input id="block-size" type="range" min="0" max="3" step="1" value="${[4, 8, 16, 32].indexOf(state.blockSize)}" aria-valuetext="${state.blockSize} workers per wave"><div class="group-size-labels" aria-hidden="true"><span>4</span><span>8</span><span>16</span><span>32</span></div><button class="button button-primary" type="button" data-play-processing>▶ Replay with ${state.blockSize}</button></div>
   </div>`;
 }
 
@@ -148,7 +124,7 @@ function providerById(id) {
   return state.capabilities?.providers?.find((provider) => provider.id === id);
 }
 
-function runMarkup() {
+function raceMarkup() {
   const webgpu = providerById("browser-webgpu");
   const apple = providerById("apple-mlx");
   const modal = providerById("modal-triton");
@@ -156,52 +132,37 @@ function runMarkup() {
   const appleReady = apple?.available === true;
   const modalReady = modal?.available === true;
   return `<div class="copy-column run-column">
-    <p class="lede">The animation showed the mapping. Now race the same paint operation on your browser’s CPU and GPU, then scale up the number of pixels.</p>
+    <p class="lede">Now measure equivalent work. This trace uses real JavaScript and WebGPU results—not the slowed animation.</p>
     <div class="provider-grid">
-      <article class="provider-card provider-card-featured">
-        <span class="provider-kind">Local · instant · no cloud charge</span>
-        <h2>CPU ↔ GPU race</h2>
-        <p>Same operation. Same output. Run a JavaScript loop and a real WGSL compute shader, then compare what this browser observes.</p>
-        <label class="race-workload" for="race-workload"><span>Workload</span><select id="race-workload" ${state.executionRunning ? "disabled" : ""}>
-          ${RACE_WORKLOADS.map((pixels) => `<option value="${pixels}" ${state.racePixels === pixels ? "selected" : ""}>${formatPixelCount(pixels)} pixels</option>`).join("")}
-        </select></label>
-        <p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p>
-        <button class="button button-primary" type="button" data-run-provider="browser-race" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run CPU ↔ GPU race</button>
-      </article>
-      <article class="provider-card">
-        <span class="provider-kind">Advanced local · companion server</span>
-        <h2>Apple GPU · MLX</h2>
-        <p>Runs a custom Metal kernel on this Mac using explicit grid and threadgroup sizes.</p>
-        <p class="provider-status ${appleReady ? "is-ready" : ""}">${apple ? (appleReady ? "Ready on this Mac" : apple.reason) : "Checking local companion…"}</p>
-        <button class="button button-primary" type="button" data-run-provider="apple-mlx" ${appleReady && !state.executionRunning ? "" : "disabled"}>Run on your Apple GPU</button>
-      </article>
-      <article class="provider-card">
-        <span class="provider-kind">Cloud · explicit confirmation</span>
-        <h2>NVIDIA L4 · Triton</h2>
-        <p>Runs the equivalent masked Triton kernel through your authenticated Modal account.</p>
-        <p class="provider-status ${modalReady ? "is-ready" : ""}">${modal ? (modalReady ? "Modal CLI detected" : modal.reason) : "Checking local companion…"}</p>
-        <label class="cost-confirm"><input id="modal-confirm" type="checkbox"> Modal uses billable NVIDIA L4 compute. I want to launch one run.</label>
-        <button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.executionRunning ? "" : "disabled"}>Run once on Modal</button>
-      </article>
-    </div>
-    <div id="gpu-run-status" class="gpu-run-status" aria-live="polite">${executionStatusMarkup()}</div>
+      <article class="provider-card provider-card-featured"><span class="provider-kind">Local · instant · no cloud charge</span><h2>CPU ↔ GPU race</h2><p>Same operation. Same output. Compare a JavaScript loop with a WGSL compute shader.</p><div class="execution-traces" aria-label="CPU and GPU execution paths"><div><strong>CPU · JavaScript</strong><span class="trace-segments cpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div><div><strong>GPU · WebGPU</strong><span class="trace-segments gpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div></div><label class="race-workload" for="race-workload"><span>Workload</span><select id="race-workload" ${state.executionRunning ? "disabled" : ""}>${RACE_WORKLOADS.map((pixels) => `<option value="${pixels}" ${state.racePixels === pixels ? "selected" : ""}>${formatPixelCount(pixels)} pixels</option>`).join("")}</select></label><p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p><button class="button button-primary" type="button" data-run-provider="browser-race" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run CPU ↔ GPU race</button></article>
+      <details class="advanced-runs"><summary>Advanced hardware paths</summary><div class="provider-grid advanced-provider-grid"><article class="provider-card"><span class="provider-kind">Advanced local · companion server</span><h2>Apple GPU · MLX</h2><p>Runs a custom Metal kernel on this Mac.</p><p class="provider-status ${appleReady ? "is-ready" : ""}">${apple ? (appleReady ? "Ready on this Mac" : apple.reason) : "Checking local companion…"}</p><button class="button button-primary" type="button" data-run-provider="apple-mlx" ${appleReady && !state.executionRunning ? "" : "disabled"}>Run on your Apple GPU</button></article><article class="provider-card"><span class="provider-kind">Cloud · explicit confirmation</span><h2>NVIDIA L4 · Triton</h2><p>Runs the equivalent masked Triton kernel through your authenticated Modal account.</p><p class="provider-status ${modalReady ? "is-ready" : ""}">${modal ? (modalReady ? "Modal CLI detected" : modal.reason) : "Checking local companion…"}</p><label class="cost-confirm"><input id="modal-confirm" type="checkbox"> Modal uses billable NVIDIA L4 compute. I want to launch one run.</label><button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.executionRunning ? "" : "disabled"}>Run once on Modal</button></article></div></details>
+    </div><div id="gpu-run-status" class="gpu-run-status" aria-live="polite">${executionStatusMarkup()}</div>
   </div>`;
 }
 
+function codeCaption(tab) {
+  return {
+    webgpu: "A WebGPU invocation reads its global ID and owns one pixel.",
+    triton: "One Triton program handles a vector of pixel offsets and masks overflow lanes.",
+    cuda: "A CUDA thread combines its block and thread IDs to find one pixel.",
+  }[tab];
+}
+
+function codeMarkup() {
+  const tabs = ["webgpu", "triton", "cuda"];
+  const selected = state.lesson.selectedWorker;
+  return `<div class="copy-column code-column"><p class="lede">Select a GPU worker below, then switch platforms. The same conceptual job stays highlighted.</p><div class="selected-worker-readout">${selected === null ? "Select a worker" : `Worker ${selected} ↔ pixel ${selected}`}</div><div class="code-tabs" role="group" aria-label="GPU implementation">${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${tab === "webgpu" ? "WebGPU" : tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div><pre class="code-panel" tabindex="0"><code>${escapeHtml(CODE_SAMPLES[state.codeTab])}</code></pre><p class="code-caption">${codeCaption(state.codeTab)}</p></div>`;
+}
+
 function executionStatusMarkup() {
-  if (state.executionRunning) return "Compiling and running the kernel…";
+  if (state.executionRunning) return "Running both paths and validating their output…";
   if (state.executionError) return `<strong>Run unavailable</strong><span>${escapeHtml(state.executionError)}</span>`;
   if (!state.executionResult) return "Choose an available backend when you are ready.";
   const result = state.executionResult;
   if (result.provider === "browser-race") return raceStatusMarkup(result);
   const measurement = result.measurements[0];
-  const isBrowserRun = measurement.name === "browser_round_trip";
-  const timingLabel = isBrowserRun ? "Browser round trip" : "Kernel latency";
-  const timingNote = isBrowserRun
-    ? "Real GPU result · timing includes browser submission and readback"
-    : "Measured GPU execution · not simulation";
-  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Correct output on ${escapeHtml(result.device)}</strong><span>${timingNote}</span></div></div>
-    <dl class="result-grid"><div><dt>Backend</dt><dd>${escapeHtml(result.implementation)}</dd></div><div><dt>${timingLabel}</dt><dd>${measurement.value.toFixed(4)} ms</dd></div><div><dt>Max error</dt><dd>${result.correctness.max_abs_error}</dd></div><div><dt>Checksum</dt><dd>${result.output.checksum}</dd></div></dl>`;
+  const browserRun = measurement.name === "browser_round_trip";
+  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Correct output on ${escapeHtml(result.device)}</strong><span>${browserRun ? "Real GPU result · timing includes browser submission and readback" : "Measured GPU execution · not simulation"}</span></div></div><dl class="result-grid"><div><dt>Backend</dt><dd>${escapeHtml(result.implementation)}</dd></div><div><dt>${browserRun ? "Browser round trip" : "Kernel latency"}</dt><dd>${measurement.value.toFixed(4)} ms</dd></div><div><dt>Max error</dt><dd>${result.correctness.max_abs_error}</dd></div><div><dt>Checksum</dt><dd>${result.output.checksum}</dd></div></dl>`;
 }
 
 function raceStatusMarkup(result) {
@@ -209,99 +170,88 @@ function raceStatusMarkup(result) {
   const gpuMs = result.gpu.measurements[0].value;
   const comparable = result.summary.winner !== null;
   const fastest = Math.max(Math.min(cpuMs, gpuMs), Number.EPSILON);
-  const cpuWidth = Math.max(8, (fastest / Math.max(cpuMs, Number.EPSILON)) * 100);
-  const gpuWidth = Math.max(8, (fastest / Math.max(gpuMs, Number.EPSILON)) * 100);
-  const comparisonHeading = comparable
-    ? `${result.summary.winner.toUpperCase()} finished first in this run · ${result.summary.ratio.toFixed(2)}× difference.`
-    : "No reliable winner for this run.";
-  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Both paths painted ${formatPixelCount(result.pixels)} pixels correctly</strong><span>Browser-observed comparison · not a hardware benchmark</span></div></div>
-    <div class="race-results">
-      <div class="race-result"><div><strong>CPU · JavaScript</strong><span>${formatObservedTime(cpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track" aria-hidden="true"><span style="width:${cpuWidth}%"></span></span>` : ""}</div>
-      <div class="race-result"><div><strong>GPU · WebGPU</strong><span>${formatObservedTime(gpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track" aria-hidden="true"><span style="width:${gpuWidth}%"></span></span>` : ""}</div>
-    </div>
-    <p class="race-insight"><strong>${comparisonHeading}</strong> ${escapeHtml(result.summary.message)}</p>
-    <p class="race-caveat">CPU time covers the JavaScript paint loop. GPU time covers browser submission through result readback. Use the pattern—not one noisy run—as the lesson.</p>`;
+  const width = (value) => Math.max(8, (fastest / Math.max(value, Number.EPSILON)) * 100);
+  const heading = comparable ? `${result.summary.winner.toUpperCase()} finished first · ${result.summary.ratio.toFixed(2)}× difference.` : "No reliable winner for this run.";
+  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Outputs match · ${formatPixelCount(result.pixels)} pixels</strong><span>Browser-observed comparison · not a hardware benchmark</span></div></div><div class="race-results"><div class="race-result"><div><strong>CPU · JavaScript</strong><span>${formatObservedTime(cpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track"><span style="width:${width(cpuMs)}%"></span></span>` : ""}</div><div class="race-result"><div><strong>GPU · WebGPU</strong><span>${formatObservedTime(gpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track"><span style="width:${width(gpuMs)}%"></span></span>` : ""}</div></div><p class="race-insight"><strong>${heading}</strong> ${escapeHtml(result.summary.message)}</p><p class="race-caveat">CPU time covers the JavaScript paint loop. GPU time covers browser submission through result readback.</p>`;
 }
 
-function challengeMarkup() {
-  return `<div class="copy-column">
-    <p class="lede">The picture still has 64 pixels. Change how many workers form a block, then rerun the same work map.</p>
-    <div class="challenge-row">
-      <label for="block-size"><strong>Teaching group size</strong><small>Metal uses a threadgroup; Triton rounds this to a power-of-two vector width; CUDA uses threads per block.</small></label>
-      <select id="block-size">
-        ${[4, 8, 10, 16].map((size) => `<option value="${size}" ${state.blockSize === size ? "selected" : ""}>${size}</option>`).join("")}
-      </select>
-    </div>
-    <p class="learning-note"><strong>Your checkpoint:</strong> “A GPU divides similar work among many workers, and every worker needs an index that identifies its data.”</p>
-  </div>`;
+function renderScene() {
+  if (elements.panel.hidden) return;
+  elements.scene.innerHTML = renderProcessingScene({ totalPixels: TOTAL_PIXELS, groupSize: state.blockSize, selectedWorker: state.lesson.selectedWorker, frame: state.frame });
+  elements.status.textContent = elements.scene.querySelector("[data-scene-status]")?.textContent ?? "Processing view ready";
+  elements.scene.querySelectorAll("[data-gpu-worker]").forEach((worker) => {
+    const activate = () => {
+      const workerId = Number(worker.dataset.gpuWorker);
+      if (workerId >= TOTAL_PIXELS) return;
+      state.lesson = selectWorker(state.lesson, workerId, TOTAL_PIXELS);
+      state.frame = sceneFrameState({ ...state.frame, selectedWorker: workerId });
+      if (currentStep() === "code") renderStep(); else renderScene();
+    };
+    worker.addEventListener("click", activate);
+    worker.addEventListener("keydown", (event) => {
+      if (!new Set(["Enter", " "]).has(event.key)) return;
+      event.preventDefault();
+      activate();
+    });
+  });
+  elements.scene.querySelectorAll("[data-phase]").forEach((button) => button.addEventListener("click", () => {
+    playback.pause();
+    state.frame = sceneFrameState({ ...state.frame, phase: button.dataset.phase });
+    renderScene();
+  }));
 }
 
-function escapeHtml(value) {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+function playProcessing() {
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reducedMotion) {
+    const frames = reducedFrames();
+    state.reducedFrameIndex = (state.reducedFrameIndex + 1) % frames.length;
+    state.frame = frames[state.reducedFrameIndex];
+    renderScene();
+    return;
+  }
+  state.frame = sceneFrameState();
+  renderScene();
+  playback.play(buildVisualFrames(), 34);
 }
 
-function codeCaption(tab) {
-  return {
-    python: "One worker visits every row and column in sequence.",
-    pytorch: "PyTorch describes the whole operation and dispatches GPU work for us.",
-    webgpu: "WGSL gives every browser GPU worker a global ID and masks workers beyond the picture.",
-    triton: "A program ID selects a block; one program handles a vector of pixel offsets and masks overflow lanes.",
-    cuda: "CUDA builds a global pixel index from a block ID and a thread ID.",
-  }[tab];
-}
-
-function formatPixelCount(pixels) {
-  return new Intl.NumberFormat("en-US").format(pixels);
+function resetProcessing() {
+  playback.reset();
+  state.reducedFrameIndex = 0;
+  state.frame = sceneFrameState({ selectedWorker: state.lesson.selectedWorker });
+  renderScene();
 }
 
 function renderStep() {
-  clearSimulationTimers();
+  playback.reset();
   const step = currentStep();
   const copy = getLessonCopy(step);
-  const content = {
-    story: storyMarkup,
-    predict: predictionMarkup,
-    simulate: simulationMarkup,
-    code: codeMarkup,
-    run: runMarkup,
-    explain: explainMarkup,
-    challenge: challengeMarkup,
-  }[step]();
-
+  const content = { see: seeMarkup, experiment: experimentMarkup, race: raceMarkup, code: codeMarkup }[step]();
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
-  elements.mode.textContent = step === "run" ? "Real GPU execution" : "Concept simulation";
+  elements.mode.textContent = step === "race" ? "Real CPU + GPU execution" : "Visual processing";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${content}`;
-  elements.simulation.hidden = !new Set(["simulate", "challenge"]).has(step);
+  elements.panel.hidden = step === "race";
   elements.back.disabled = state.lesson.stepIndex === 0;
-  elements.next.textContent = step === "challenge" ? "Finish lesson ✓" : "Continue →";
+  elements.next.textContent = step === "code" ? "Finish lesson ✓" : "Continue →";
   renderProgress();
   bindStepEvents();
-
-  if (!elements.simulation.hidden) {
-    resetSimulation();
-  }
+  if (!elements.panel.hidden) renderScene();
 }
 
 function bindStepEvents() {
-  document.querySelectorAll("[data-prediction]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const prediction = button.dataset.prediction;
-      state.lesson = recordPrediction(state.lesson, prediction);
-      renderStep();
-      document.querySelector(`[data-prediction="${prediction}"]`)?.focus();
-    });
+  document.querySelector("[data-play-processing]")?.addEventListener("click", playProcessing);
+  document.querySelector("[data-reset-processing]")?.addEventListener("click", resetProcessing);
+  document.querySelector("#block-size")?.addEventListener("input", (event) => {
+    state.blockSize = [4, 8, 16, 32][Number(event.target.value)];
+    resetProcessing();
+    renderStep();
+    document.querySelector("#block-size")?.focus();
   });
-  document.querySelectorAll("[data-code-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.codeTab = button.dataset.codeTab;
-      renderStep();
-      document.querySelector(`[data-code-tab="${state.codeTab}"]`)?.focus();
-    });
-  });
-  document.querySelector("#block-size")?.addEventListener("change", (event) => {
-    state.blockSize = Number(event.target.value);
-    resetSimulation();
-  });
+  document.querySelectorAll("[data-code-tab]").forEach((button) => button.addEventListener("click", () => {
+    state.codeTab = button.dataset.codeTab;
+    renderStep();
+    document.querySelector(`[data-code-tab="${state.codeTab}"]`)?.focus();
+  }));
   document.querySelector("#race-workload")?.addEventListener("change", (event) => {
     state.racePixels = Number(event.target.value);
     state.executionResult = null;
@@ -309,9 +259,7 @@ function bindStepEvents() {
     renderStep();
     document.querySelector("#race-workload")?.focus();
   });
-  document.querySelectorAll("[data-run-provider]").forEach((button) => {
-    button.addEventListener("click", () => runRealGpu(button.dataset.runProvider));
-  });
+  document.querySelectorAll("[data-run-provider]").forEach((button) => button.addEventListener("click", () => runRealGpu(button.dataset.runProvider)));
 }
 
 async function loadCapabilities() {
@@ -325,14 +273,12 @@ async function loadCapabilities() {
       { id: "modal-triton", available: false, reason: "Start the companion server and authenticate Modal first." },
     ] });
   }
-  if (currentStep() === "run") renderStep();
+  if (currentStep() === "race") renderStep();
 }
 
 async function runRealGpu(provider) {
   const requestedRacePixels = state.racePixels;
-  const confirmed = provider === "modal-triton"
-    ? document.querySelector("#modal-confirm")?.checked === true
-    : false;
+  const confirmed = provider === "modal-triton" ? document.querySelector("#modal-confirm")?.checked === true : false;
   if (provider === "modal-triton" && !confirmed) {
     state.executionError = "Confirm the billable Modal L4 run before launching.";
     renderStep();
@@ -347,121 +293,44 @@ async function runRealGpu(provider) {
       const cpu = runCpuPaint({ pixels: requestedRacePixels });
       const gpu = await runWebGpuPaint({ pixels: requestedRacePixels, groupSize: state.blockSize });
       if (cpu.output.checksum !== gpu.output.checksum) throw new Error("CPU and GPU outputs did not match.");
-      state.executionResult = {
-        provider: "browser-race",
-        pixels: requestedRacePixels,
-        cpu,
-        gpu,
-        summary: buildRaceSummary({ cpu, gpu, pixels: requestedRacePixels }),
-      };
+      state.executionResult = { provider: "browser-race", pixels: requestedRacePixels, cpu, gpu, summary: buildRaceSummary({ cpu, gpu, pixels: requestedRacePixels }) };
     } else if (provider === "browser-webgpu") {
       state.executionResult = await runWebGpuPaint({ pixels: 64, groupSize: state.blockSize });
     } else {
-      const response = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, group_size: state.blockSize, confirmed: provider === "modal-triton" }),
-      });
+      const response = await fetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, group_size: state.blockSize, confirmed: provider === "modal-triton" }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "GPU execution failed");
       state.executionResult = payload;
     }
-  } catch (error) {
-    state.executionError = error.message;
+  } catch (_error) {
+    state.executionError = "The selected run could not complete. Check the local terminal for details.";
   } finally {
     state.executionRunning = false;
     renderStep();
   }
 }
 
-function resetSimulation() {
-  clearSimulationTimers();
-  state.simulationHasRun = false;
-  const work = buildPixelWork({ width: 8, height: 8, blockSize: state.blockSize });
-  elements.grid.innerHTML = work.threads.map((thread, index) =>
-    `<button type="button" tabindex="${index === 0 ? 0 : -1}" class="pixel ${thread.active ? "" : "is-masked"}" data-thread="${thread.threadId}" aria-label="${thread.active ? `Pixel ${thread.x}, ${thread.y}; waiting` : `Thread ${thread.threadId}; masked because it is outside the image`}"></button>`,
-  ).join("");
-  const maskedCount = work.launchedThreads - work.totalPixels;
-  elements.simulationHeading.textContent = `${work.totalPixels} pixels · ${work.launchedThreads} launched threads`;
-  elements.status.textContent = `Ready. ${work.totalPixels} pixels are waiting; ${work.blockCount} blocks of ${state.blockSize} launch${maskedCount ? `, with ${maskedCount} overflow threads stopped by the mask` : ""}.`;
-  elements.inspector.innerHTML = `<span class="section-label">Thread inspector</span><strong>Select a pixel</strong><p>Run the simulation, then choose any square to trace its worker.</p>`;
-  elements.run.disabled = false;
-  bindPixels(work);
-}
-
-function runSimulation() {
-  resetSimulation();
-  const work = buildPixelWork({ width: 8, height: 8, blockSize: state.blockSize });
-  elements.run.disabled = true;
-  elements.status.textContent = "Assigning one active thread to every pixel…";
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const delay = reducedMotion ? 0 : 28;
-
-  work.threads.filter((thread) => thread.active).forEach((thread, index) => {
-    const timer = window.setTimeout(() => {
-      const pixel = elements.grid.querySelector(`[data-thread="${thread.threadId}"]`);
-      pixel.classList.add("is-painted", `block-${thread.blockId % 4}`);
-      pixel.setAttribute("aria-label", `Pixel ${thread.x}, ${thread.y}; painted by thread ${thread.threadId} in block ${thread.blockId}`);
-      if (index === work.totalPixels - 1) {
-        state.simulationHasRun = true;
-        elements.run.disabled = false;
-        elements.status.textContent = `Complete: ${work.totalPixels} active threads painted ${work.totalPixels} pixels. This animation shows mapping, not elapsed GPU time.`;
-      }
-    }, index * delay);
-    state.simulationTimers.push(timer);
-  });
-}
-
-function bindPixels(work) {
-  const pixels = [...elements.grid.querySelectorAll(".pixel")];
-  pixels.forEach((pixel, index) => {
-    pixel.addEventListener("click", () => {
-      const thread = work.threads[Number(pixel.dataset.thread)];
-      elements.grid.querySelectorAll(".pixel").forEach((item) => item.classList.remove("is-inspected"));
-      pixel.classList.add("is-inspected");
-      elements.inspector.innerHTML = thread.active ? `<span class="section-label">Thread inspector</span><strong>Thread ${thread.threadId}</strong><dl>
-        <div><dt>Block</dt><dd>${thread.blockId}</dd></div>
-        <div><dt>Lane in block</dt><dd>${thread.laneId}</dd></div>
-        <div><dt>Pixel</dt><dd>(${thread.x}, ${thread.y})</dd></div>
-      </dl><p><code>pixel = ${thread.threadId}</code></p>` : `<span class="section-label">Thread inspector</span><strong>Thread ${thread.threadId} is masked</strong><p>Its offset is outside the 64-pixel image, so the boundary mask prevents a memory write.</p>`;
-    });
-    pixel.addEventListener("keydown", (event) => {
-      if (!new Set(["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"]).has(event.key)) return;
-      event.preventDefault();
-      const targetIndex = nextGridIndex({ current: index, key: event.key, columns: 8, total: pixels.length });
-      pixels.forEach((item, itemIndex) => item.tabIndex = itemIndex === targetIndex ? 0 : -1);
-      pixels[targetIndex].focus();
-    });
-  });
-}
-
 elements.next.addEventListener("click", () => {
-  if (currentStep() === "challenge") {
-    elements.content.innerHTML = `<div class="completion"><span class="completion-mark">✓</span><h1 id="step-title">Trail marker reached</h1><p>You mapped threads to pixels and connected Python, Triton, and CUDA indexing.</p><button class="button button-primary" type="button" id="restart-lesson">Run the lesson again</button></div>`;
-    elements.simulation.hidden = true;
+  if (currentStep() === "code") {
+    playback.reset();
+    elements.content.innerHTML = `<div class="completion"><span class="completion-mark">✓</span><h1 id="step-title">Trail marker reached</h1><p>You watched processing, reshaped the workers, measured the browser, and connected a worker to GPU code.</p><button class="button button-primary" type="button" id="restart-lesson">Run the lesson again</button></div>`;
+    elements.panel.hidden = true;
     elements.next.hidden = true;
     elements.back.hidden = true;
     document.querySelector("#restart-lesson").addEventListener("click", () => window.location.reload());
     return;
   }
-
-  try {
-    state.lesson = advanceLesson(state.lesson);
-    renderStep();
-  } catch (error) {
-    const firstChoice = document.querySelector("[data-prediction]");
-    firstChoice?.focus();
-    elements.content.querySelector(".prediction-options")?.setAttribute("aria-invalid", "true");
-  }
+  state.lesson = advanceLesson(state.lesson);
+  resetProcessing();
+  renderStep();
 });
 
 elements.back.addEventListener("click", () => {
   if (state.lesson.stepIndex === 0) return;
   state.lesson = retreatLesson(state.lesson);
+  resetProcessing();
   renderStep();
 });
-elements.run.addEventListener("click", runSimulation);
-elements.reset.addEventListener("click", resetSimulation);
 
 renderStep();
 loadCapabilities();

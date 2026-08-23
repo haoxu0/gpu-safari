@@ -4,19 +4,10 @@ import assert from "node:assert/strict";
 import {
   CODE_SAMPLES,
   getLessonCopy,
-  getPredictionFeedback,
 } from "../src/lesson-content.mjs";
 
-test("every lesson step has concise progressive-reveal copy", () => {
-  for (const step of [
-    "story",
-    "predict",
-    "simulate",
-    "code",
-    "run",
-    "explain",
-    "challenge",
-  ]) {
+test("the four visual lesson steps have concise progressive-reveal copy", () => {
+  for (const step of ["see", "experiment", "race", "code"]) {
     const copy = getLessonCopy(step);
 
     assert.equal(typeof copy.eyebrow, "string");
@@ -24,12 +15,6 @@ test("every lesson step has concise progressive-reveal copy", () => {
     assert.ok(copy.eyebrow.length > 0);
     assert.ok(copy.title.length > 0);
   }
-});
-
-test("prediction feedback rewards reasoning without claiming measured speed", () => {
-  assert.match(getPredictionFeedback("gpu"), /parallel/i);
-  assert.match(getPredictionFeedback("cpu"), /reasonable/i);
-  assert.doesNotMatch(getPredictionFeedback("gpu"), /milliseconds|faster by/i);
 });
 
 test("the Triton sample teaches block programs and masked vector stores", () => {

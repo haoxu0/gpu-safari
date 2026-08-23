@@ -1,38 +1,20 @@
 const LESSON_COPY = Object.freeze({
-  story: {
-    eyebrow: "Meet the workers",
-    title: "Paint pixels in parallel",
+  see: {
+    eyebrow: "See the processing",
+    title: "One worker or many?",
   },
-  predict: {
-    eyebrow: "Make a prediction",
-    title: "Which team finishes the picture first?",
+  experiment: {
+    eyebrow: "Change the shape",
+    title: "How many workers launch together?",
   },
-  simulate: {
-    eyebrow: "Concept simulation",
-    title: "Watch threads find their pixels",
+  race: {
+    eyebrow: "Measure the browser",
+    title: "Run the same jobs for real",
   },
   code: {
-    eyebrow: "Reveal the code",
-    title: "The same idea across five GPU interfaces",
+    eyebrow: "Connect the model",
+    title: "Touch a worker. See its code.",
   },
-  run: {
-    eyebrow: "Real GPU execution",
-    title: "Run the idea on a real GPU",
-  },
-  explain: {
-    eyebrow: "Build the mental model",
-    title: "Every worker needs an identity and a destination",
-  },
-  challenge: {
-    eyebrow: "Try a change",
-    title: "What happens when the team size changes?",
-  },
-});
-
-const PREDICTION_FEEDBACK = Object.freeze({
-  gpu: "That is the parallel idea: many GPU workers can each own one pixel. Now let’s inspect how the work is assigned.",
-  cpu: "That is a reasonable prediction—a CPU worker is individually powerful. The simulation will show why many independent pixels are a useful GPU-shaped problem.",
-  same: "That is a reasonable baseline. The amount of work is identical; the important question is how much of it can happen in parallel.",
 });
 
 export function getLessonCopy(step) {
@@ -41,14 +23,6 @@ export function getLessonCopy(step) {
     throw new Error(`Unknown lesson step: ${step}`);
   }
   return copy;
-}
-
-export function getPredictionFeedback(prediction) {
-  const feedback = PREDICTION_FEEDBACK[prediction];
-  if (!feedback) {
-    throw new Error(`Unknown prediction: ${prediction}`);
-  }
-  return feedback;
 }
 
 export const CODE_SAMPLES = Object.freeze({

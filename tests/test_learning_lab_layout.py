@@ -38,16 +38,18 @@ def test_learning_lab_has_platform_neutral_static_entrypoint():
 def test_learning_lab_exposes_accessible_progress_and_feedback_regions():
     html = (LAB / "learn" / "paint-pixels" / "index.html").read_text()
     app = (LAB / "src" / "app.mjs").read_text()
+    scene = (LAB / "src" / "processing-scene.mjs").read_text()
 
     assert 'aria-label="Lesson progress"' in html
     assert 'id="step-content"' in html
     assert 'aria-live="polite"' in html
-    assert 'id="simulation-status"' in html
-    assert 'id="thread-inspector"' in html
+    assert 'id="processing-panel"' in html
+    assert 'id="processing-scene"' in html
+    assert 'id="processing-status"' in html
     assert 'role="tablist"' not in app
     assert 'role="tab"' not in app
-    assert 'addEventListener("keydown"' in app
-    assert 'tabindex="${index === 0 ? 0 : -1}"' in app
+    assert 'role="button" tabindex="${active ? 0 : -1}"' in scene
+    assert 'data-scene-status' in scene
 
 
 def test_learning_lab_styles_support_reduced_motion_and_small_screens():
@@ -62,7 +64,7 @@ def test_triton_caption_describes_vectorized_program_work():
     app = (LAB / "src" / "app.mjs").read_text()
 
     assert "A program ID selects a pixel" not in app
-    assert "one program handles a vector of pixel offsets" in app
+    assert "One Triton program handles a vector of pixel offsets" in app
 
 
 def test_learning_lab_does_not_present_simulated_values_as_gpu_measurements():
@@ -89,7 +91,7 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     app = (LAB / "src" / "app.mjs").read_text()
 
     assert 'id="execution-mode"' in html
-    assert 'step === "run" ? "Real GPU execution" : "Concept simulation"' in app
+    assert 'step === "race" ? "Real CPU + GPU execution" : "Visual processing"' in app
     assert 'from "./webgpu-runner.mjs"' in app
     assert 'data-run-provider="browser-race"' in app
     assert "Run CPU ↔ GPU race" in app
