@@ -5,7 +5,7 @@ import {
   retreatLesson,
   selectWorker,
 } from "./lesson-model.mjs";
-import { CODE_SAMPLES, getLessonCopy } from "./lesson-content.mjs";
+import { CODE_SAMPLES, getCodeSelection, getLessonCopy } from "./lesson-content.mjs";
 import { buildProcessingTimeline } from "./simulation-timeline.mjs";
 import { renderProcessingScene, sceneFrameState } from "./processing-scene.mjs";
 import { createPlaybackController } from "./playback-controller.mjs";
@@ -140,18 +140,20 @@ function raceMarkup() {
   </div>`;
 }
 
-function codeCaption(tab) {
-  return {
-    webgpu: "A WebGPU invocation reads its global ID and owns one pixel.",
-    triton: "One Triton program handles a vector of pixel offsets and masks overflow lanes.",
-    cuda: "A CUDA thread combines its block and thread IDs to find one pixel.",
-  }[tab];
+function highlightedCode(source, token) {
+  const start = source.indexOf(token);
+  if (start < 0) return escapeHtml(source);
+  return `${escapeHtml(source.slice(0, start))}<mark>${escapeHtml(token)}</mark>${escapeHtml(source.slice(start + token.length))}`;
 }
 
 function codeMarkup() {
-  const tabs = ["webgpu", "triton", "cuda"];
+  const tabs = ["webgpu", "metal", "triton", "cuda"];
   const selected = state.lesson.selectedWorker;
-  return `<div class="copy-column code-column"><p class="lede">Select a GPU worker below, then switch platforms. The same conceptual job stays highlighted.</p><div class="selected-worker-readout">${selected === null ? "Select a worker" : `Worker ${selected} ↔ pixel ${selected}`}</div><div class="code-tabs" role="group" aria-label="GPU implementation">${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${tab === "webgpu" ? "WebGPU" : tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div><pre class="code-panel" tabindex="0"><code>${escapeHtml(CODE_SAMPLES[state.codeTab])}</code></pre><p class="code-caption">${codeCaption(state.codeTab)}</p></div>`;
+  const selection = selected === null ? null : getCodeSelection(state.codeTab, selected);
+  const source = selection?.source ?? CODE_SAMPLES[state.codeTab];
+  const code = selection ? highlightedCode(source, selection.highlightedToken) : escapeHtml(source);
+  const caption = selection?.caption ?? "Select a worker in the processing scene to connect its identity to this code.";
+  return `<div class="copy-column code-column"><p class="lede">Select a GPU worker below, then switch platforms. The same conceptual job stays highlighted.</p><div class="selected-worker-readout">${selected === null ? "Select a worker" : `Worker ${selected} ↔ pixel ${selected}`}</div><div class="code-tabs" role="group" aria-label="GPU implementation">${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${tab === "webgpu" ? "WebGPU" : tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div><pre class="code-panel" tabindex="0"><code>${code}</code></pre><p class="code-caption">${escapeHtml(caption)}</p></div>`;
 }
 
 function executionStatusMarkup() {

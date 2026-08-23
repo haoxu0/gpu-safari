@@ -32,7 +32,7 @@ def test_learning_lab_has_platform_neutral_static_entrypoint():
     assert 'src="../../src/app.mjs"' in html
     assert 'href="../../styles.css"' in html
     assert "Paint Pixels in Parallel" in html
-    assert "Concept simulation" in html
+    assert "Visual processing" in html
 
 
 def test_learning_lab_exposes_accessible_progress_and_feedback_regions():
@@ -60,11 +60,24 @@ def test_learning_lab_styles_support_reduced_motion_and_small_screens():
     assert ":focus-visible" in css
 
 
-def test_triton_caption_describes_vectorized_program_work():
+def test_visual_lesson_supports_four_steps_keyboard_and_reduced_motion():
     app = (LAB / "src" / "app.mjs").read_text()
+    scene = (LAB / "src" / "processing-scene.mjs").read_text()
+    css = (LAB / "styles.css").read_text()
 
-    assert "A program ID selects a pixel" not in app
-    assert "One Triton program handles a vector of pixel offsets" in app
+    assert 'const STEP_LABELS = ["See", "Experiment", "Race", "Code"]' in app
+    assert 'new Set(["Enter", " "])' in app
+    assert '"Next phase"' in app
+    assert 'data-scene-status' in scene
+    assert "Focus or select a worker" in scene
+    assert ".processing-lanes { grid-template-columns: 1fr; }" in css
+
+
+def test_triton_caption_describes_vectorized_program_work():
+    content = (LAB / "src" / "lesson-content.mjs").read_text()
+
+    assert "A program ID selects a pixel" not in content
+    assert "Triton program that handles vector lanes" in content
 
 
 def test_learning_lab_does_not_present_simulated_values_as_gpu_measurements():
@@ -76,7 +89,7 @@ def test_learning_lab_does_not_present_simulated_values_as_gpu_measurements():
 
     assert "fake benchmark" not in content.lower()
     assert "simulated gpu time" not in content.lower()
-    assert "Concept simulation" in content
+    assert "Slowed visual · not timing" in content
 
 
 def test_repository_readme_links_to_the_beginner_learning_lab():
@@ -123,9 +136,10 @@ def test_homepage_leads_with_guided_expedition_and_optional_hardware():
 
     assert 'aria-label="Primary navigation"' in home
     assert 'id="primary-lesson-link"' in home
-    assert "Predict" in home
-    assert "Visualize" in home
-    assert "Explain" in home
+    assert "See" in home
+    assert "Experiment" in home
+    assert "Race" in home
+    assert "Code" in home
     assert "No GPU, install, or account required" in home
     assert "Take it further" in home
     assert 'id="featured-lesson"' in home
