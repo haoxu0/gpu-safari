@@ -29,9 +29,9 @@ python -m pytest -q
 
 ## Run a real GPU shader in the browser
 
-Open the published site in a current browser, complete the first four lesson steps, and choose **Run on this GPU**. WebGPU runs a real WGSL compute shader locally with no Python environment, companion server, account, or cloud charge. On macOS, the browser maps WebGPU work to Apple's Metal stack.
+Open the published site in a current browser, complete the first four lesson steps, and choose **Run CPU ↔ GPU race**. The lesson runs the same paint operation in a JavaScript CPU loop and a real WGSL compute shader, verifies matching output, and compares 64, 65,536, or 1,048,576 pixels. No Python environment, companion server, account, or cloud charge is required. On macOS, the browser maps WebGPU work to Apple's Metal stack.
 
-The displayed time is the browser round trip from command submission through result readback. It is deliberately not labeled as kernel latency. Use the native companion below when you want Metal-specific execution and profiling.
+The CPU time covers the JavaScript loop, while the GPU time covers browser submission through result readback. The comparison is deliberately not presented as pure kernel latency or a hardware benchmark. A CPU win is expected for very cheap work because dispatch and readback can cost more than the operation itself. Use the native companion below when you want Metal-specific execution and profiling.
 
 ## Run a real Metal kernel on Apple silicon
 

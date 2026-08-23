@@ -118,6 +118,8 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .provider-kind { color: var(--green); font-size: 10px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
 .provider-status { min-height: 40px; padding-top: 10px; border-top: 1px solid var(--line); }
 .provider-status.is-ready { color: var(--green); }
+.race-workload { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-block: 1px solid var(--line); color: var(--ink); font-size: 13px; font-weight: 700; }
+.race-workload select { min-width: 170px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
 .cost-confirm { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .cost-confirm input { margin-top: 2px; }
 .gpu-run-status { min-height: 62px; padding: 17px; display: grid; gap: 6px; border-radius: 12px; background: var(--canvas); color: var(--muted); font-size: 13px; }
@@ -130,6 +132,15 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .result-grid div { display: grid; gap: 3px; }
 .result-grid dt { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .result-grid dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.race-results { display: grid; gap: 12px; margin-top: 8px; }
+.race-result { display: grid; gap: 6px; }
+.race-result > div { display: flex; justify-content: space-between; gap: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.race-track { height: 9px; overflow: hidden; border-radius: 99px; background: var(--line); }
+.race-track span { display: block; height: 100%; border-radius: inherit; background: var(--green); }
+.race-result:first-child .race-track span { background: var(--blue); }
+.race-insight, .race-caveat { margin: 4px 0 0; line-height: 1.5; }
+.race-insight { color: var(--ink); }
+.race-caveat { padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; }
 
 .lesson-controls { min-height: 78px; padding: 16px clamp(24px, 6vw, 72px); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
 .button { min-height: 42px; padding: 10px 16px; border-radius: 9px; border: 1px solid transparent; font-weight: 700; cursor: pointer; }
@@ -162,6 +173,8 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .thread-inspector { min-height: 130px; }
   .provider-grid, .result-grid { grid-template-columns: 1fr; }
   .provider-card-featured { grid-column: auto; }
+  .race-workload { align-items: stretch; flex-direction: column; }
+  .race-workload select { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

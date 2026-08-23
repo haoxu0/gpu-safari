@@ -16,6 +16,12 @@ import {
   runWebGpuPaint,
   withWebGpuCapability,
 } from "./webgpu-runner.mjs";
+import {
+  RACE_WORKLOADS,
+  buildRaceSummary,
+  formatObservedTime,
+  runCpuPaint,
+} from "./race-runner.mjs";
 
 const STEP_LABELS = ["Story", "Predict", "Simulate", "Code", "Run", "Explain", "Challenge"];
 const state = {
@@ -24,6 +30,7 @@ const state = {
   simulationHasRun: false,
   codeTab: "python",
   blockSize: 8,
+  racePixels: 64,
   capabilities: null,
   executionResult: null,
   executionError: null,
@@ -149,14 +156,17 @@ function runMarkup() {
   const appleReady = apple?.available === true;
   const modalReady = modal?.available === true;
   return `<div class="copy-column run-column">
-    <p class="lede">The animation showed the mapping. Now run the same work on your GPU—directly in this page, with no setup.</p>
+    <p class="lede">The animation showed the mapping. Now race the same paint operation on your browser’s CPU and GPU, then scale up the number of pixels.</p>
     <div class="provider-grid">
       <article class="provider-card provider-card-featured">
         <span class="provider-kind">Local · instant · no cloud charge</span>
-        <h2>This device · WebGPU</h2>
-        <p>Runs a real WGSL compute shader through your browser. On a Mac, the browser maps this work to Apple’s Metal stack.</p>
+        <h2>CPU ↔ GPU race</h2>
+        <p>Same operation. Same output. Run a JavaScript loop and a real WGSL compute shader, then compare what this browser observes.</p>
+        <label class="race-workload" for="race-workload"><span>Workload</span><select id="race-workload" ${state.executionRunning ? "disabled" : ""}>
+          ${RACE_WORKLOADS.map((pixels) => `<option value="${pixels}" ${state.racePixels === pixels ? "selected" : ""}>${formatPixelCount(pixels)} pixels</option>`).join("")}
+        </select></label>
         <p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p>
-        <button class="button button-primary" type="button" data-run-provider="browser-webgpu" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run on this GPU</button>
+        <button class="button button-primary" type="button" data-run-provider="browser-race" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run CPU ↔ GPU race</button>
       </article>
       <article class="provider-card">
         <span class="provider-kind">Advanced local · companion server</span>
@@ -183,6 +193,7 @@ function executionStatusMarkup() {
   if (state.executionError) return `<strong>Run unavailable</strong><span>${escapeHtml(state.executionError)}</span>`;
   if (!state.executionResult) return "Choose an available backend when you are ready.";
   const result = state.executionResult;
+  if (result.provider === "browser-race") return raceStatusMarkup(result);
   const measurement = result.measurements[0];
   const isBrowserRun = measurement.name === "browser_round_trip";
   const timingLabel = isBrowserRun ? "Browser round trip" : "Kernel latency";
@@ -191,6 +202,25 @@ function executionStatusMarkup() {
     : "Measured GPU execution · not simulation";
   return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Correct output on ${escapeHtml(result.device)}</strong><span>${timingNote}</span></div></div>
     <dl class="result-grid"><div><dt>Backend</dt><dd>${escapeHtml(result.implementation)}</dd></div><div><dt>${timingLabel}</dt><dd>${measurement.value.toFixed(4)} ms</dd></div><div><dt>Max error</dt><dd>${result.correctness.max_abs_error}</dd></div><div><dt>Checksum</dt><dd>${result.output.checksum}</dd></div></dl>`;
+}
+
+function raceStatusMarkup(result) {
+  const cpuMs = result.cpu.measurements[0].value;
+  const gpuMs = result.gpu.measurements[0].value;
+  const comparable = result.summary.winner !== null;
+  const fastest = Math.max(Math.min(cpuMs, gpuMs), Number.EPSILON);
+  const cpuWidth = Math.max(8, (fastest / Math.max(cpuMs, Number.EPSILON)) * 100);
+  const gpuWidth = Math.max(8, (fastest / Math.max(gpuMs, Number.EPSILON)) * 100);
+  const comparisonHeading = comparable
+    ? `${result.summary.winner.toUpperCase()} finished first in this run · ${result.summary.ratio.toFixed(2)}× difference.`
+    : "No reliable winner for this run.";
+  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Both paths painted ${formatPixelCount(result.pixels)} pixels correctly</strong><span>Browser-observed comparison · not a hardware benchmark</span></div></div>
+    <div class="race-results">
+      <div class="race-result"><div><strong>CPU · JavaScript</strong><span>${formatObservedTime(cpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track" aria-hidden="true"><span style="width:${cpuWidth}%"></span></span>` : ""}</div>
+      <div class="race-result"><div><strong>GPU · WebGPU</strong><span>${formatObservedTime(gpuMs, result.summary.timerResolutionMs)}</span></div>${comparable ? `<span class="race-track" aria-hidden="true"><span style="width:${gpuWidth}%"></span></span>` : ""}</div>
+    </div>
+    <p class="race-insight"><strong>${comparisonHeading}</strong> ${escapeHtml(result.summary.message)}</p>
+    <p class="race-caveat">CPU time covers the JavaScript paint loop. GPU time covers browser submission through result readback. Use the pattern—not one noisy run—as the lesson.</p>`;
 }
 
 function challengeMarkup() {
@@ -218,6 +248,10 @@ function codeCaption(tab) {
     triton: "A program ID selects a block; one program handles a vector of pixel offsets and masks overflow lanes.",
     cuda: "CUDA builds a global pixel index from a block ID and a thread ID.",
   }[tab];
+}
+
+function formatPixelCount(pixels) {
+  return new Intl.NumberFormat("en-US").format(pixels);
 }
 
 function renderStep() {
@@ -268,6 +302,13 @@ function bindStepEvents() {
     state.blockSize = Number(event.target.value);
     resetSimulation();
   });
+  document.querySelector("#race-workload")?.addEventListener("change", (event) => {
+    state.racePixels = Number(event.target.value);
+    state.executionResult = null;
+    state.executionError = null;
+    renderStep();
+    document.querySelector("#race-workload")?.focus();
+  });
   document.querySelectorAll("[data-run-provider]").forEach((button) => {
     button.addEventListener("click", () => runRealGpu(button.dataset.runProvider));
   });
@@ -288,6 +329,7 @@ async function loadCapabilities() {
 }
 
 async function runRealGpu(provider) {
+  const requestedRacePixels = state.racePixels;
   const confirmed = provider === "modal-triton"
     ? document.querySelector("#modal-confirm")?.checked === true
     : false;
@@ -301,7 +343,18 @@ async function runRealGpu(provider) {
   state.executionResult = null;
   renderStep();
   try {
-    if (provider === "browser-webgpu") {
+    if (provider === "browser-race") {
+      const cpu = runCpuPaint({ pixels: requestedRacePixels });
+      const gpu = await runWebGpuPaint({ pixels: requestedRacePixels, groupSize: state.blockSize });
+      if (cpu.output.checksum !== gpu.output.checksum) throw new Error("CPU and GPU outputs did not match.");
+      state.executionResult = {
+        provider: "browser-race",
+        pixels: requestedRacePixels,
+        cpu,
+        gpu,
+        summary: buildRaceSummary({ cpu, gpu, pixels: requestedRacePixels }),
+      };
+    } else if (provider === "browser-webgpu") {
       state.executionResult = await runWebGpuPaint({ pixels: 64, groupSize: state.blockSize });
     } else {
       const response = await fetch("/api/run", {
