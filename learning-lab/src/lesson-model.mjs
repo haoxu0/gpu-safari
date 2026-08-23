@@ -1,36 +1,27 @@
 export const LESSON_STEPS = Object.freeze([
-  "story",
-  "predict",
-  "simulate",
+  "see",
+  "experiment",
+  "race",
   "code",
-  "run",
-  "explain",
-  "challenge",
 ]);
 
 export function createLessonState() {
   return {
     stepIndex: 0,
-    prediction: null,
     completed: [],
+    selectedWorker: null,
   };
 }
 
-export function recordPrediction(state, prediction) {
-  if (!new Set(["cpu", "gpu", "same"]).has(prediction)) {
-    throw new Error("Prediction must be cpu, gpu, or same");
+export function selectWorker(state, workerId, totalPixels) {
+  if (!Number.isInteger(workerId) || workerId < 0 || workerId >= totalPixels) {
+    throw new RangeError("workerId must identify an active pixel");
   }
 
-  return { ...state, prediction };
+  return { ...state, selectedWorker: workerId };
 }
 
 export function advanceLesson(state) {
-  const currentStep = LESSON_STEPS[state.stepIndex];
-
-  if (currentStep === "predict" && state.prediction === null) {
-    throw new Error("Choose a prediction before continuing");
-  }
-
   if (state.stepIndex >= LESSON_STEPS.length - 1) {
     return state;
   }
@@ -38,7 +29,7 @@ export function advanceLesson(state) {
   return {
     ...state,
     stepIndex: state.stepIndex + 1,
-    completed: [...state.completed, currentStep],
+    completed: [...state.completed, LESSON_STEPS[state.stepIndex]],
   };
 }
 
