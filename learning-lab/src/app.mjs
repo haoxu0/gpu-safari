@@ -132,7 +132,7 @@ function experimentMarkup() {
   return `<div class="copy-column compact-copy visual-step-copy">
     <p class="lede">Try a 62-pixel edge case. Change the worker-group size and watch overflow workers become masked.</p>
     <div class="experiment-controls"><label for="block-size"><span>Workers per group</span><strong>${state.blockSize}</strong></label><input id="block-size" type="range" min="0" max="3" step="1" value="${[4, 8, 16, 32].indexOf(state.blockSize)}" aria-valuetext="${state.blockSize} workers per group"><div class="group-size-labels" aria-hidden="true"><span>4</span><span>8</span><span>16</span><span>32</span></div><button class="button button-primary" type="button" data-play-processing>▶ Replay with ${state.blockSize}</button></div>
-    <dl class="experiment-stats"><div><dt>Pixels</dt><dd>${state.experimentPixels}</dd></div><div><dt>Workgroups</dt><dd>${groupCount}</dd></div><div><dt>Active workers</dt><dd>${state.experimentPixels}</dd></div><div><dt>Masked overflow</dt><dd>${maskedWorkers}</dd></div></dl>
+    <dl class="experiment-stats"><div><dt>Pixels</dt><dd>${state.experimentPixels}</dd></div><div><dt>Workgroups</dt><dd>${groupCount}</dd></div><div><dt>Visual waves</dt><dd>${groupCount}</dd></div><div><dt>Active workers</dt><dd>${state.experimentPixels}</dd></div><div><dt>Masked overflow</dt><dd>${maskedWorkers}</dd></div></dl>
   </div>`;
 }
 
@@ -230,7 +230,7 @@ function playProcessing() {
     renderScene();
     return;
   }
-  state.frame = sceneFrameState();
+  state.frame = sceneFrameState({ selectedWorker: selectedWorkerForScene() });
   renderScene();
   playback.play(buildVisualFrames(), 34);
 }

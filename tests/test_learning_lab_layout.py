@@ -78,6 +78,7 @@ def test_experiment_exposes_group_counts_and_a_real_masked_edge_case():
 
     assert "experimentPixels: 62" in app
     assert "Workgroups" in app
+    assert "Visual waves" in app
     assert "Active workers" in app
     assert "Masked overflow" in app
     assert "overflow workers become masked" in app

@@ -94,7 +94,7 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .experiment-controls input { grid-column: 1 / -1; width: 100%; accent-color: var(--green); }
 .group-size-labels { grid-column: 1 / -1; display: flex; justify-content: space-between; color: var(--muted); font: 10px ui-monospace, monospace; }
 .experiment-controls .button { grid-column: 1 / -1; }
-.experiment-stats { grid-column: 1 / -1; margin: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.experiment-stats { grid-column: 1 / -1; margin: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
 .experiment-stats div { padding: 9px; display: grid; gap: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); }
 .experiment-stats dt { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
 .experiment-stats dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 750; }
