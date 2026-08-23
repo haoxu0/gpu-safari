@@ -12,6 +12,10 @@ import {
   getLessonCopy,
   getPredictionFeedback,
 } from "./lesson-content.mjs";
+import {
+  runWebGpuPaint,
+  withWebGpuCapability,
+} from "./webgpu-runner.mjs";
 
 const STEP_LABELS = ["Story", "Predict", "Simulate", "Code", "Run", "Explain", "Challenge"];
 const state = {
@@ -110,11 +114,11 @@ function simulationMarkup() {
 }
 
 function codeMarkup() {
-  const tabs = ["python", "pytorch", "triton", "cuda"];
+  const tabs = ["python", "pytorch", "webgpu", "triton", "cuda"];
   return `<div class="copy-column code-column">
     <p class="lede">The operation stays the same as we move closer to the hardware. What changes is how explicitly we describe the workers.</p>
     <div class="code-tabs" role="group" aria-label="Implementation level">
-      ${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${tab === "pytorch" ? "PyTorch" : tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
+      ${tabs.map((tab) => `<button type="button" class="code-tab ${state.codeTab === tab ? "is-selected" : ""}" aria-pressed="${state.codeTab === tab}" data-code-tab="${tab}">${({ pytorch: "PyTorch", webgpu: "WebGPU" })[tab] ?? tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
     </div>
     <pre class="code-panel" tabindex="0"><code>${escapeHtml(CODE_SAMPLES[state.codeTab])}</code></pre>
     <p class="code-caption">${codeCaption(state.codeTab)}</p>
@@ -138,15 +142,24 @@ function providerById(id) {
 }
 
 function runMarkup() {
+  const webgpu = providerById("browser-webgpu");
   const apple = providerById("apple-mlx");
   const modal = providerById("modal-triton");
+  const webgpuReady = webgpu?.available === true;
   const appleReady = apple?.available === true;
   const modalReady = modal?.available === true;
   return `<div class="copy-column run-column">
-    <p class="lede">The animation showed the mapping. Now choose hardware and measure a real kernel. Both backends return the same correctness and timing format.</p>
+    <p class="lede">The animation showed the mapping. Now run the same work on your GPU—directly in this page, with no setup.</p>
     <div class="provider-grid">
+      <article class="provider-card provider-card-featured">
+        <span class="provider-kind">Local · instant · no cloud charge</span>
+        <h2>This device · WebGPU</h2>
+        <p>Runs a real WGSL compute shader through your browser. On a Mac, the browser maps this work to Apple’s Metal stack.</p>
+        <p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p>
+        <button class="button button-primary" type="button" data-run-provider="browser-webgpu" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run on this GPU</button>
+      </article>
       <article class="provider-card">
-        <span class="provider-kind">Local · no cloud charge</span>
+        <span class="provider-kind">Advanced local · companion server</span>
         <h2>Apple GPU · MLX</h2>
         <p>Runs a custom Metal kernel on this Mac using explicit grid and threadgroup sizes.</p>
         <p class="provider-status ${appleReady ? "is-ready" : ""}">${apple ? (appleReady ? "Ready on this Mac" : apple.reason) : "Checking local companion…"}</p>
@@ -170,9 +183,14 @@ function executionStatusMarkup() {
   if (state.executionError) return `<strong>Run unavailable</strong><span>${escapeHtml(state.executionError)}</span>`;
   if (!state.executionResult) return "Choose an available backend when you are ready.";
   const result = state.executionResult;
-  const latency = result.measurements[0].value;
-  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Correct output on ${escapeHtml(result.device)}</strong><span>Measured GPU execution · not simulation</span></div></div>
-    <dl class="result-grid"><div><dt>Backend</dt><dd>${escapeHtml(result.implementation)}</dd></div><div><dt>Latency</dt><dd>${latency.toFixed(4)} ms</dd></div><div><dt>Max error</dt><dd>${result.correctness.max_abs_error}</dd></div><div><dt>Checksum</dt><dd>${result.output.checksum}</dd></div></dl>`;
+  const measurement = result.measurements[0];
+  const isBrowserRun = measurement.name === "browser_round_trip";
+  const timingLabel = isBrowserRun ? "Browser round trip" : "Kernel latency";
+  const timingNote = isBrowserRun
+    ? "Real GPU result · timing includes browser submission and readback"
+    : "Measured GPU execution · not simulation";
+  return `<div class="result-heading"><span class="result-check">✓</span><div><strong>Correct output on ${escapeHtml(result.device)}</strong><span>${timingNote}</span></div></div>
+    <dl class="result-grid"><div><dt>Backend</dt><dd>${escapeHtml(result.implementation)}</dd></div><div><dt>${timingLabel}</dt><dd>${measurement.value.toFixed(4)} ms</dd></div><div><dt>Max error</dt><dd>${result.correctness.max_abs_error}</dd></div><div><dt>Checksum</dt><dd>${result.output.checksum}</dd></div></dl>`;
 }
 
 function challengeMarkup() {
@@ -196,6 +214,7 @@ function codeCaption(tab) {
   return {
     python: "One worker visits every row and column in sequence.",
     pytorch: "PyTorch describes the whole operation and dispatches GPU work for us.",
+    webgpu: "WGSL gives every browser GPU worker a global ID and masks workers beyond the picture.",
     triton: "A program ID selects a block; one program handles a vector of pixel offsets and masks overflow lanes.",
     cuda: "CUDA builds a global pixel index from a block ID and a thread ID.",
   }[tab];
@@ -216,7 +235,7 @@ function renderStep() {
   }[step]();
 
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
-  elements.mode.textContent = step === "run" ? "Measured execution" : "Concept simulation";
+  elements.mode.textContent = step === "run" ? "Real GPU execution" : "Concept simulation";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${content}`;
   elements.simulation.hidden = !new Set(["simulate", "challenge"]).has(step);
   elements.back.disabled = state.lesson.stepIndex === 0;
@@ -258,12 +277,12 @@ async function loadCapabilities() {
   try {
     const response = await fetch("/api/capabilities");
     if (!response.ok) throw new Error("Companion API unavailable");
-    state.capabilities = await response.json();
+    state.capabilities = withWebGpuCapability(await response.json());
   } catch (_error) {
-    state.capabilities = { providers: [
+    state.capabilities = withWebGpuCapability({ providers: [
       { id: "apple-mlx", available: false, reason: "Start with `python learning-lab/server.py` to enable real GPU runs." },
       { id: "modal-triton", available: false, reason: "Start the companion server and authenticate Modal first." },
-    ] };
+    ] });
   }
   if (currentStep() === "run") renderStep();
 }
@@ -282,14 +301,18 @@ async function runRealGpu(provider) {
   state.executionResult = null;
   renderStep();
   try {
-    const response = await fetch("/api/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, group_size: state.blockSize, confirmed: provider === "modal-triton" }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "GPU execution failed");
-    state.executionResult = payload;
+    if (provider === "browser-webgpu") {
+      state.executionResult = await runWebGpuPaint({ pixels: 64, groupSize: state.blockSize });
+    } else {
+      const response = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, group_size: state.blockSize, confirmed: provider === "modal-triton" }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "GPU execution failed");
+      state.executionResult = payload;
+    }
   } catch (error) {
     state.executionError = error.message;
   } finally {
