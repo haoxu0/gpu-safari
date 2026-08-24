@@ -21,16 +21,30 @@ export function withWebGpuCapability(serverCapabilities = {}, navigatorLike = gl
   };
 }
 
-export function createPaintShader({ pixels, groupSize }) {
+export function planWebGpuDispatch({ pixels, groupSize, maxWorkgroupsPerDimension }) {
+  if (!Number.isInteger(pixels) || pixels <= 0) throw new RangeError("pixels must be a positive integer");
+  if (!Number.isInteger(groupSize) || groupSize <= 0) throw new RangeError("groupSize must be a positive integer");
+  if (!Number.isInteger(maxWorkgroupsPerDimension) || maxWorkgroupsPerDimension <= 0) {
+    throw new RangeError("maxWorkgroupsPerDimension must be a positive integer");
+  }
+  const totalWorkgroups = Math.ceil(pixels / groupSize);
+  const workgroupsX = Math.min(totalWorkgroups, maxWorkgroupsPerDimension);
+  const workgroupsY = Math.ceil(totalWorkgroups / workgroupsX);
+  if (workgroupsY > maxWorkgroupsPerDimension) throw new RangeError("workload exceeds WebGPU dispatch limits");
+  return { workgroupsX, workgroupsY, rowStride: workgroupsX * groupSize };
+}
+
+export function createPaintShader({ pixels, groupSize, rowStride }) {
   if (!Number.isInteger(pixels) || pixels <= 0) throw new RangeError("pixels must be a positive integer");
   if (!Number.isInteger(groupSize) || groupSize <= 0 || groupSize > 256) {
     throw new RangeError("groupSize must be an integer from 1 to 256");
   }
+  if (!Number.isInteger(rowStride) || rowStride <= 0) throw new RangeError("rowStride must be a positive integer");
   return `@group(0) @binding(0) var<storage, read_write> output: array<f32>;
 
 @compute @workgroup_size(${groupSize})
 fn paint(@builtin(global_invocation_id) id: vec3<u32>) {
-  let pixel = id.x;
+  let pixel = id.y * ${rowStride}u + id.x;
   if (pixel < ${pixels}u) {
     output[pixel] = 0.5;
   }
@@ -74,6 +88,11 @@ export async function runWebGpuPaint({ pixels = 64, groupSize = 8 } = {}) {
   if (!adapter) throw new Error("The browser could not access a GPU adapter.");
 
   const device = await adapter.requestDevice();
+  const dispatch = planWebGpuDispatch({
+    pixels,
+    groupSize,
+    maxWorkgroupsPerDimension: adapter.limits?.maxComputeWorkgroupsPerDimension ?? 65_535,
+  });
   const byteLength = pixels * Float32Array.BYTES_PER_ELEMENT;
   const output = device.createBuffer({
     size: byteLength,
@@ -85,7 +104,7 @@ export async function runWebGpuPaint({ pixels = 64, groupSize = 8 } = {}) {
   });
 
   try {
-    const module = device.createShaderModule({ code: createPaintShader({ pixels, groupSize }) });
+    const module = device.createShaderModule({ code: createPaintShader({ pixels, groupSize, rowStride: dispatch.rowStride }) });
     const pipeline = device.createComputePipeline({
       layout: "auto",
       compute: { module, entryPoint: "paint" },
@@ -98,7 +117,7 @@ export async function runWebGpuPaint({ pixels = 64, groupSize = 8 } = {}) {
     const pass = encoder.beginComputePass();
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(pixels / groupSize));
+    pass.dispatchWorkgroups(dispatch.workgroupsX, dispatch.workgroupsY);
     pass.end();
     encoder.copyBufferToBuffer(output, 0, readback, 0, byteLength);
 

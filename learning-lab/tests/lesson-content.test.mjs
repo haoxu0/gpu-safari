@@ -3,20 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   CODE_SAMPLES,
+  getCodeSelection,
   getLessonCopy,
-  getPredictionFeedback,
 } from "../src/lesson-content.mjs";
 
-test("every lesson step has concise progressive-reveal copy", () => {
-  for (const step of [
-    "story",
-    "predict",
-    "simulate",
-    "code",
-    "run",
-    "explain",
-    "challenge",
-  ]) {
+test("the four visual lesson steps have concise progressive-reveal copy", () => {
+  for (const step of ["see", "experiment", "race", "code"]) {
     const copy = getLessonCopy(step);
 
     assert.equal(typeof copy.eyebrow, "string");
@@ -24,12 +16,6 @@ test("every lesson step has concise progressive-reveal copy", () => {
     assert.ok(copy.eyebrow.length > 0);
     assert.ok(copy.title.length > 0);
   }
-});
-
-test("prediction feedback rewards reasoning without claiming measured speed", () => {
-  assert.match(getPredictionFeedback("gpu"), /parallel/i);
-  assert.match(getPredictionFeedback("cpu"), /reasonable/i);
-  assert.doesNotMatch(getPredictionFeedback("gpu"), /milliseconds|faster by/i);
 });
 
 test("the Triton sample teaches block programs and masked vector stores", () => {
@@ -45,4 +31,27 @@ test("the WebGPU sample connects browser workers to a masked WGSL compute shader
   assert.match(CODE_SAMPLES.webgpu, /@builtin\(global_invocation_id\)/);
   assert.match(CODE_SAMPLES.webgpu, /pixel < n_pixels/);
   assert.match(CODE_SAMPLES.webgpu, /output\[pixel\]/);
+});
+
+test("platform code keeps one conceptual worker selected", () => {
+  const webgpu = getCodeSelection("webgpu", 10);
+  const metal = getCodeSelection("metal", 10);
+  const triton = getCodeSelection("triton", 10);
+  const cuda = getCodeSelection("cuda", 10);
+
+  assert.match(webgpu.highlightedToken, /global_invocation_id/);
+  assert.match(metal.highlightedToken, /thread_position_in_grid/);
+  assert.match(triton.highlightedToken, /program_id.*arange/s);
+  assert.match(cuda.highlightedToken, /blockIdx\.x.*threadIdx\.x/);
+  for (const selection of [webgpu, metal, triton, cuda]) {
+    assert.match(selection.caption, /worker 10/i);
+    assert.match(selection.source, new RegExp(selection.highlightedToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(triton.caption, /program.*vector lanes/i);
+});
+
+test("code selection rejects unknown platforms and invalid workers", () => {
+  assert.throws(() => getCodeSelection("opencl", 1), /Unknown code platform/);
+  assert.throws(() => getCodeSelection("cuda", -1), RangeError);
+  assert.throws(() => getCodeSelection("cuda", 1.5), RangeError);
 });

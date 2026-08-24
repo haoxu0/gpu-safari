@@ -6,26 +6,20 @@ import {
   advanceLesson,
   buildPixelWork,
   createLessonState,
-  recordPrediction,
   retreatLesson,
   nextGridIndex,
+  selectWorker,
 } from "../src/lesson-model.mjs";
 
-test("a new lesson starts at the story with no prediction", () => {
+test("a new lesson starts with the four-step visual journey", () => {
   const state = createLessonState();
 
-  assert.deepEqual(LESSON_STEPS, [
-    "story",
-    "predict",
-    "simulate",
-    "code",
-    "run",
-    "explain",
-    "challenge",
-  ]);
-  assert.equal(state.stepIndex, 0);
-  assert.equal(state.prediction, null);
-  assert.deepEqual(state.completed, []);
+  assert.deepEqual(LESSON_STEPS, ["see", "experiment", "race", "code"]);
+  assert.deepEqual(state, {
+    stepIndex: 0,
+    completed: [],
+    selectedWorker: null,
+  });
 });
 
 test("advancing returns a new state and records the completed step", () => {
@@ -34,37 +28,29 @@ test("advancing returns a new state and records the completed step", () => {
 
   assert.notEqual(next, state);
   assert.equal(next.stepIndex, 1);
-  assert.deepEqual(next.completed, ["story"]);
+  assert.deepEqual(next.completed, ["see"]);
   assert.deepEqual(state.completed, []);
 });
 
-test("the prediction step cannot advance before the learner chooses", () => {
-  const predictState = advanceLesson(createLessonState());
-
-  assert.throws(
-    () => advanceLesson(predictState),
-    /Choose a prediction before continuing/,
-  );
-});
-
-test("recording a prediction unlocks the simulation step", () => {
-  const predictState = advanceLesson(createLessonState());
-  const answered = recordPrediction(predictState, "gpu");
-  const simulateState = advanceLesson(answered);
-
-  assert.equal(answered.prediction, "gpu");
-  assert.equal(simulateState.stepIndex, 2);
-  assert.deepEqual(simulateState.completed, ["story", "predict"]);
-});
-
 test("retreating removes the reopened step from completion history", () => {
-  const predictState = advanceLesson(createLessonState());
-  const simulateState = advanceLesson(recordPrediction(predictState, "gpu"));
-  const returned = retreatLesson(simulateState);
+  const experimentState = advanceLesson(createLessonState());
+  const raceState = advanceLesson(experimentState);
+  const returned = retreatLesson(raceState);
 
   assert.equal(returned.stepIndex, 1);
-  assert.equal(returned.prediction, "gpu");
-  assert.deepEqual(returned.completed, ["story"]);
+  assert.deepEqual(returned.completed, ["see"]);
+});
+
+test("selecting a worker is immutable and bounded by the pixel count", () => {
+  const state = createLessonState();
+  const selected = selectWorker(state, 7, 64);
+
+  assert.notEqual(selected, state);
+  assert.equal(selected.selectedWorker, 7);
+  assert.equal(state.selectedWorker, null);
+  assert.throws(() => selectWorker(state, -1, 64), RangeError);
+  assert.throws(() => selectWorker(state, 64, 64), RangeError);
+  assert.throws(() => selectWorker(state, 1.5, 64), RangeError);
 });
 
 test("pixel work maps one active thread to each pixel and masks overflow", () => {

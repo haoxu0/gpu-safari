@@ -16,7 +16,7 @@ Open <http://localhost:8000/learning-lab/>. From there you can explore the trail
 
 ## Start here
 
-- New to GPU programming? Begin with the interactive [Paint Pixels in Parallel](learning-lab/) learning lab. It runs in a browser without a GPU and connects familiar Python ideas to Triton and CUDA.
+- New to GPU programming? Begin with the interactive [Paint Pixels in Parallel](learning-lab/) learning lab. Watch CPU and GPU processing, reshape the workers, measure WebGPU in your browser, and connect one worker to Metal, Triton, and CUDA.
 - Start the guided website: [GPU Safari learning experience](learning-lab/).
 - Learn the foundations: execution models, memory, correctness, profiling, and benchmarking.
 - Run the first experiment: [CUDA reduction](experiments/cuda/reduction/README.md).
