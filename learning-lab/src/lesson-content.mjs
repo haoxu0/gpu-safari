@@ -1,20 +1,7 @@
 const LESSON_COPY = Object.freeze({
-  see: {
-    eyebrow: "See the processing",
-    title: "One worker or many?",
-  },
-  experiment: {
-    eyebrow: "Change the shape",
-    title: "How many workers launch together?",
-  },
-  race: {
-    eyebrow: "Measure the browser",
-    title: "Run the same jobs for real",
-  },
-  code: {
-    eyebrow: "Connect the model",
-    title: "Touch a worker. See its code.",
-  },
+  configure: { eyebrow: "Ask and configure", title: "How will each processor paint the pixels?" },
+  run: { eyebrow: "Run both paths", title: "Watch the CPU and GPU do the same work" },
+  compare: { eyebrow: "Compare results", title: "What did the measurements actually show?" },
 });
 
 export function getLessonCopy(step) {
@@ -26,6 +13,7 @@ export function getLessonCopy(step) {
 }
 
 export const CODE_SAMPLES = Object.freeze({
+  cpu: `const output = new Float32Array(pixels);\nfor (let pixel = 0; pixel < pixels; pixel += 1) {\n    output[pixel] = 0.5;\n}`,
   python: `for y in range(height):\n    for x in range(width):\n        image[y, x] = color`,
   pytorch: `image = torch.empty((height, width, 3), device="cuda")\nimage[:] = color`,
   webgpu: `@group(0) @binding(0)\nvar<storage, read_write> output: array<f32>;\n\n@compute @workgroup_size(8)\nfn paint(@builtin(global_invocation_id) id: vec3<u32>) {\n    let pixel = id.x;\n    let n_pixels = 64u;\n    if (pixel < n_pixels) {\n        output[pixel] = 0.5;\n    }\n}`,
@@ -37,7 +25,7 @@ export const CODE_SAMPLES = Object.freeze({
 const CODE_SELECTIONS = Object.freeze({
   webgpu: {
     highlightedToken: "@builtin(global_invocation_id)",
-    caption: (workerId) => `WebGPU invocation worker ${workerId} reads a global ID and maps it to pixel ${workerId}.`,
+    caption: (workerId) => `Worker ${workerId} reads a WebGPU global invocation ID and maps it to pixel ${workerId}.`,
   },
   metal: {
     highlightedToken: "thread_position_in_grid",

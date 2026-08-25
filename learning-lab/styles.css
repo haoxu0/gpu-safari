@@ -172,6 +172,14 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .dispatch-facts strong { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
 .dispatch-facts p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .dispatch-facts p:first-of-type { color: var(--ink); font-weight: 700; }
+.run-workspace { display: grid; gap: 14px; }
+.run-workspace.has-code { grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); align-items: start; }
+.run-visual { min-width: 0; }
+.run-code-panel { min-width: 0; display: grid; gap: 10px; }
+.run-code-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.other-platforms { color: var(--muted); font-size: 11px; }
+.other-platforms p { line-height: 1.45; }
+.show-code { margin-top: 10px; }
 
 .lesson-controls { min-height: 78px; padding: 16px clamp(24px, 6vw, 72px); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
 .button { min-height: 42px; padding: 10px 16px; border-radius: 9px; border: 1px solid transparent; font-weight: 700; cursor: pointer; }
@@ -208,6 +216,8 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .race-workload select { width: 100%; }
   .execution-traces > div { grid-template-columns: 1fr; }
   .dispatch-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .run-workspace.has-code { grid-template-columns: 1fr; }
+  .run-code-panel { order: 2; }
   .chart-axis { padding-left: 0; }
   .chart-row { grid-template-columns: 1fr; gap: 6px; }
 }
