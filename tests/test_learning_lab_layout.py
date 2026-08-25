@@ -118,6 +118,7 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     assert 'from "./webgpu-runner.mjs"' in app
     assert 'data-run="cpu"' in app
     assert 'data-run="webgpu"' in app
+    assert 'data-prediction="${value}" aria-pressed="${state.session.prediction === value}"' in app
     assert "Run on CPU" in app
     assert "Run on my GPU" in app
     assert "Real dispatch and validated result" in (LAB / "src" / "dispatch-replay.mjs").read_text()
