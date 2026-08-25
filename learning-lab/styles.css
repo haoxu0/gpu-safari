@@ -50,6 +50,19 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .copy-column { max-width: 740px; display: grid; gap: 22px; }
 .compact-copy { gap: 12px; }
 .lede { margin: 0; max-width: 680px; color: var(--muted); font-size: clamp(17px, 2vw, 21px); line-height: 1.62; }
+.experiment-question, .run-stage, .compare-stage { display: grid; gap: 20px; }
+.config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.config-grid label { padding: 15px; display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); color: var(--muted); font-size: 11px; }
+.config-grid select { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-weight: 700; }
+.prediction { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.prediction legend { width: 100%; margin-bottom: 3px; color: var(--muted); font-size: 11px; }
+.prediction .is-selected { border-color: var(--green); background: var(--green-soft); }
+.question-preview { padding: 16px; display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; border-radius: 12px; background: light-dark(#101713, #080d0a); color: #eef7f1; }
+.question-preview span { color: #55d895; font: 800 11px ui-monospace, monospace; }
+.run-actions { display: flex; gap: 9px; }
+.run-status { min-height: 38px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px 18px; border-radius: 9px; background: var(--canvas); color: var(--muted); font-size: 11px; }
+.run-status.is-running { color: var(--green); }
+.run-status.is-error { color: #b24f4f; }
 
 .processing-panel { padding: 0 clamp(24px, 6vw, 72px) 38px; background: var(--surface-raised); }
 .processing-scene { padding: clamp(16px, 3vw, 26px); border: 1px solid var(--line); border-radius: 16px; background: light-dark(#101713, #080d0a); color: #eef7f1; }
@@ -207,6 +220,8 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .processing-lanes { grid-template-columns: 1fr; }
   .pixel-link-map { grid-template-columns: repeat(8, minmax(16px, 1fr)); }
   .visual-step-copy { grid-template-columns: 1fr; }
+  .config-grid { grid-template-columns: 1fr; }
+  .run-actions { flex-direction: column; }
   .experiment-stats { grid-template-columns: repeat(2, 1fr); }
   .scene-controls { justify-content: stretch; }
   .scene-controls .button { flex: 1; }
