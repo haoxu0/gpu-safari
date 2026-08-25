@@ -11,10 +11,10 @@ import {
   selectWorker,
 } from "../src/lesson-model.mjs";
 
-test("a new lesson starts with the four-step visual journey", () => {
+test("a new lesson starts with the three-stage experiment", () => {
   const state = createLessonState();
 
-  assert.deepEqual(LESSON_STEPS, ["see", "experiment", "race", "code"]);
+  assert.deepEqual(LESSON_STEPS, ["configure", "run", "compare"]);
   assert.deepEqual(state, {
     stepIndex: 0,
     completed: [],
@@ -28,7 +28,7 @@ test("advancing returns a new state and records the completed step", () => {
 
   assert.notEqual(next, state);
   assert.equal(next.stepIndex, 1);
-  assert.deepEqual(next.completed, ["see"]);
+  assert.deepEqual(next.completed, ["configure"]);
   assert.deepEqual(state.completed, []);
 });
 
@@ -38,7 +38,7 @@ test("retreating removes the reopened step from completion history", () => {
   const returned = retreatLesson(raceState);
 
   assert.equal(returned.stepIndex, 1);
-  assert.deepEqual(returned.completed, ["see"]);
+  assert.deepEqual(returned.completed, ["configure"]);
 });
 
 test("selecting a worker is immutable and bounded by the pixel count", () => {

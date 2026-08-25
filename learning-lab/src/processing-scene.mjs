@@ -107,7 +107,7 @@ function phaseClass(phase, current) {
   return `process-phase${phase === current ? " is-current" : ""}`;
 }
 
-export function renderProcessingScene({ totalPixels, groupSize, selectedWorker = null, frame = sceneFrameState() }) {
+export function renderProcessingScene({ totalPixels, groupSize, selectedWorker = null, frame = sceneFrameState(), presentation = "simulation" }) {
   requirePositiveInteger(totalPixels, "totalPixels");
   requirePositiveInteger(groupSize, "groupSize");
   if (selectedWorker !== null && (!Number.isInteger(selectedWorker) || selectedWorker < 0 || selectedWorker >= totalPixels)) {
@@ -116,6 +116,7 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
 
   const viewFrame = sceneFrameState({ ...frame, selectedWorker });
   const layout = buildWorkgroupLayout({ totalPixels, groupSize });
+  const dispatchReplay = presentation === "dispatch-replay";
   const phaseLabels = {
     prepare: "Prepare commands",
     submit: "Submit · CPU is free",
@@ -124,7 +125,7 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
   };
 
   return `<div class="processing-scene" data-scene-phase="${viewFrame.phase}">
-    <div class="scene-legend"><span>Processing view</span><strong>Slowed visual · not timing</strong></div>
+    <div class="scene-legend"><span>${dispatchReplay ? "Real WebGPU dispatch" : "Processing view"}</span><strong>${dispatchReplay ? "Worker timing is illustrative" : "Slowed visual · not timing"}</strong></div>
     <div class="processing-lanes">
       <section class="processing-lane cpu-lane" aria-labelledby="cpu-lane-title">
         <header><span>CPU</span><strong id="cpu-lane-title">CPU · sequential</strong><small>one job at a time</small></header>
@@ -137,7 +138,7 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
       <section class="processing-lane gpu-lane" aria-labelledby="gpu-lane-title">
         <header><span>GPU</span><strong id="gpu-lane-title">GPU · asynchronous</strong><small>many workers together</small></header>
         <div class="phase-path" aria-label="GPU processing phases">
-          ${Object.entries(phaseLabels).map(([phase, label]) => `<button type="button" class="${phaseClass(phase, viewFrame.phase)}" data-phase="${phase}" aria-pressed="${phase === viewFrame.phase}">${label}</button>`).join('<span aria-hidden="true">→</span>')}
+          ${Object.entries(phaseLabels).map(([phase, label]) => `<span class="${phaseClass(phase, viewFrame.phase)}" data-phase="${phase}" ${phase === viewFrame.phase ? 'aria-current="step"' : ""}>${label}</span>`).join('<span aria-hidden="true">→</span>')}
         </div>
         <svg viewBox="0 0 ${layout.width} ${layout.height}" role="group" aria-label="GPU workers organized into workgroups">
           <g class="workgroup-map">${renderWorkgroups(layout)}</g>
@@ -149,6 +150,6 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
       ${Array.from({ length: totalPixels }, (_, id) => `<span data-pixel="${id}" class="pixel-link${selectedClass(id, selectedWorker)}" aria-label="Pixel ${id}">${id}</span>`).join("")}
     </div>
     <p class="scene-hint">Focus or select a worker to connect it to its pixel.</p>
-    <p data-scene-status class="sr-only">${phaseLabels[viewFrame.phase] ?? "Ready to play the processing view"}</p>
+    <p data-scene-status class="sr-only" role="status" aria-live="polite">${phaseLabels[viewFrame.phase] ?? "Ready to play the processing view"}</p>
   </div>`;
 }

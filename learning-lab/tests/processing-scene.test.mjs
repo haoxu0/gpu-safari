@@ -29,6 +29,8 @@ test("the GPU path exposes every asynchronous phase", () => {
   for (const phase of ["prepare", "submit", "work", "readback"]) {
     assert.match(html, new RegExp(`data-phase="${phase}"`));
   }
+  assert.doesNotMatch(html, /<button[^>]+data-phase=/);
+  assert.match(html, /role="status" aria-live="polite"/);
   assert.match(html, /CPU is free/);
 });
 
@@ -89,4 +91,18 @@ test("workgroup geometry stays bounded and non-overlapping for every lesson size
       assert.ok(worker.y + worker.size <= layout.height);
     }
   }
+});
+
+test("a real dispatch replay distinguishes measured facts from illustrative scheduling", () => {
+  const html = renderProcessingScene({
+    totalPixels: 8,
+    groupSize: 4,
+    selectedWorker: null,
+    frame: sceneFrameState({ phase: "work", gpuPainted: [0, 1, 2, 3] }),
+    presentation: "dispatch-replay",
+  });
+
+  assert.match(html, /Real WebGPU dispatch/);
+  assert.match(html, /Worker timing is illustrative/);
+  assert.doesNotMatch(html, /Slowed visual · not timing/);
 });

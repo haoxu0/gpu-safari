@@ -32,7 +32,7 @@ def test_learning_lab_has_platform_neutral_static_entrypoint():
     assert 'src="../../src/app.mjs"' in html
     assert 'href="../../styles.css"' in html
     assert "Paint Pixels in Parallel" in html
-    assert "Visual processing" in html
+    assert "Question + configuration" in html
 
 
 def test_learning_lab_exposes_accessible_progress_and_feedback_regions():
@@ -42,7 +42,8 @@ def test_learning_lab_exposes_accessible_progress_and_feedback_regions():
 
     assert 'aria-label="Lesson progress"' in html
     assert 'id="step-content"' in html
-    assert 'aria-live="polite"' in html
+    assert 'id="step-content" class="step-content"' in html
+    assert 'id="step-content" class="step-content" aria-live=' not in html
     assert 'id="processing-panel"' in html
     assert 'id="processing-scene"' in html
     assert 'id="processing-status"' in html
@@ -60,28 +61,26 @@ def test_learning_lab_styles_support_reduced_motion_and_small_screens():
     assert ":focus-visible" in css
 
 
-def test_visual_lesson_supports_four_steps_keyboard_and_reduced_motion():
+def test_visual_lesson_supports_three_stages_keyboard_and_reduced_motion():
     app = (LAB / "src" / "app.mjs").read_text()
     scene = (LAB / "src" / "processing-scene.mjs").read_text()
     css = (LAB / "styles.css").read_text()
 
-    assert 'const STEP_LABELS = ["See", "Experiment", "Race", "Code"]' in app
+    assert 'const STEP_LABELS = ["Question", "Run", "Compare"]' in app
     assert 'new Set(["Enter", " "])' in app
-    assert '"Next phase"' in app
+    assert 'prefers-reduced-motion: reduce' in app
     assert 'data-scene-status' in scene
     assert "Focus or select a worker" in scene
     assert ".processing-lanes { grid-template-columns: 1fr; }" in css
 
 
-def test_experiment_exposes_group_counts_and_a_real_masked_edge_case():
+def test_configuration_exposes_workload_and_workgroup_choices():
     app = (LAB / "src" / "app.mjs").read_text()
 
-    assert "experimentPixels: 62" in app
-    assert "Workgroups" in app
-    assert "Visual waves" in app
-    assert "Active workers" in app
-    assert "Masked overflow" in app
-    assert "overflow workers become masked" in app
+    assert 'id="experiment-pixels"' in app
+    assert 'id="experiment-group"' in app
+    assert "active workgroups" in app
+    assert 'data-prediction="${value}"' in app
 
 
 def test_triton_caption_describes_vectorized_program_work():
@@ -115,19 +114,24 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     app = (LAB / "src" / "app.mjs").read_text()
 
     assert 'id="execution-mode"' in html
-    assert 'step === "race" ? "Real CPU + GPU execution" : "Visual processing"' in app
+    assert '"Real CPU + GPU runs"' in app
     assert 'from "./webgpu-runner.mjs"' in app
-    assert 'data-run-provider="browser-race"' in app
-    assert "Run CPU ↔ GPU race" in app
-    assert "Same operation. Same output." in app
-    assert "Browser-observed comparison" in app
-    assert "No install" in app
-    assert 'runWebGpuPaint({ pixels: 64, groupSize: state.blockSize })' in app
+    assert 'data-run="cpu"' in app
+    assert 'data-run="webgpu"' in app
+    assert 'data-prediction="${value}" aria-pressed="${state.session.prediction === value}"' in app
+    assert "Run on CPU" in app
+    assert "Run on my GPU" in app
+    assert "Real dispatch and validated result" in (LAB / "src" / "dispatch-replay.mjs").read_text()
+    assert "Compare results" in app
+    assert 'runWebGpuPaint({ pixels: launchConfig.pixels, groupSize: launchConfig.groupSize })' in app
+    assert 'elements.back.disabled = state.lesson.stepIndex === 0 || Boolean(state.running)' in app
     assert 'fetch("/api/capabilities")' in app
+    assert "Other hardware" in app
+    assert "Modal NVIDIA run is billable" in app
     assert 'fetch("/api/run"' in app
-    assert "Run on your Apple GPU" in app
-    assert "Modal uses billable NVIDIA L4 compute" in app
     assert 'confirmed: provider === "modal-triton"' in app
+    assert "Run on your Apple GPU" in app
+    assert "Run once on Modal" in app
 
 
 def test_public_site_has_home_trails_and_nested_lesson_routes():
@@ -147,14 +151,16 @@ def test_homepage_leads_with_guided_expedition_and_optional_hardware():
 
     assert 'aria-label="Primary navigation"' in home
     assert 'id="primary-lesson-link"' in home
-    assert "See" in home
-    assert "Experiment" in home
-    assert "Race" in home
-    assert "Code" in home
+    assert "Configure" in home
+    assert "Run" in home
+    assert "Compare" in home
     assert "No GPU, install, or account required" in home
     assert "Take it further" in home
     assert 'id="featured-lesson"' in home
     assert 'src="./src/home.mjs"' in home
+
+    styles = (LAB / "styles.css").read_text()
+    assert ".progress-list { margin: 0; grid-template-columns: repeat(3, 1fr);" in styles
 
 
 def test_homepage_gpu_work_map_has_aligned_fixed_width_edges():

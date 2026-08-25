@@ -89,6 +89,7 @@ test("WebGPU result labels browser round-trip timing instead of kernel latency",
     elapsedMs: 1.25,
     checksum: 32,
     maxAbsError: 0,
+    dispatch: { workgroupsX: 8, workgroupsY: 1, rowStride: 64 },
   });
 
   assert.equal(result.provider, "browser-webgpu");
@@ -96,6 +97,31 @@ test("WebGPU result labels browser round-trip timing instead of kernel latency",
   assert.equal(result.measurements[0].unit, "ms");
   assert.equal(result.measurements[0].value, 1.25);
   assert.equal(result.correctness.passed, true);
+  assert.deepEqual(result.workload.dispatch, {
+    workgroups_x: 8,
+    workgroups_y: 1,
+    active_workgroups: 8,
+    dispatched_workgroups: 8,
+  });
+});
+
+test("WebGPU result distinguishes active groups from a padded 2D dispatch grid", () => {
+  const result = buildWebGpuResult({
+    device: "Apple GPU",
+    pixels: 1_048_576,
+    groupSize: 8,
+    elapsedMs: 2,
+    checksum: 524_288,
+    maxAbsError: 0,
+    dispatch: { workgroupsX: 65_535, workgroupsY: 3, rowStride: 524_280 },
+  });
+
+  assert.deepEqual(result.workload.dispatch, {
+    workgroups_x: 65_535,
+    workgroups_y: 3,
+    active_workgroups: 131_072,
+    dispatched_workgroups: 196_605,
+  });
 });
 
 test("opaque Metal adapter identifiers become a learner-friendly device label", () => {

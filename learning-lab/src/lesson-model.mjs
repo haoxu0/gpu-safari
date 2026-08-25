@@ -1,8 +1,7 @@
 export const LESSON_STEPS = Object.freeze([
-  "see",
-  "experiment",
-  "race",
-  "code",
+  "configure",
+  "run",
+  "compare",
 ]);
 
 export function createLessonState() {

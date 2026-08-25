@@ -7,8 +7,8 @@ import {
   getLessonCopy,
 } from "../src/lesson-content.mjs";
 
-test("the four visual lesson steps have concise progressive-reveal copy", () => {
-  for (const step of ["see", "experiment", "race", "code"]) {
+test("the three experiment stages have concise progressive-reveal copy", () => {
+  for (const step of ["configure", "run", "compare"]) {
     const copy = getLessonCopy(step);
 
     assert.equal(typeof copy.eyebrow, "string");
