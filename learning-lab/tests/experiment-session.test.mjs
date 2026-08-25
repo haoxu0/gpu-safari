@@ -10,10 +10,10 @@ import {
   setExperimentStage,
 } from "../src/experiment-session.mjs";
 
-function result(provider, pixels = 64, checksum = 32) {
+function result(provider, pixels = 64, checksum = 32, groupSize = 8) {
   return {
     provider,
-    workload: { pixels },
+    workload: { pixels, group_size: groupSize },
     correctness: { passed: true },
     output: { checksum },
   };
@@ -49,6 +49,9 @@ test("comparison rejects incorrect, mismatched, or stale results", () => {
 
   const mismatch = recordGpuRun(recordCpuRun(initial, result("browser-cpu")), result("browser-webgpu", 64, 31));
   assert.equal(canCompare(mismatch), false);
+
+  const wrongGroup = recordGpuRun(recordCpuRun(initial, result("browser-cpu")), result("browser-webgpu", 64, 32, 16));
+  assert.equal(canCompare(wrongGroup), false);
 
   const changed = setExperimentConfig(recordCpuRun(initial, result("browser-cpu")), { pixels: 65_536, groupSize: 16 });
   assert.equal(changed.cpu, null);

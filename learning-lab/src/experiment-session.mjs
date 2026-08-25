@@ -50,6 +50,7 @@ export function canCompare(session) {
     && gpu.result?.correctness?.passed
     && cpu.result?.workload?.pixels === session.config.pixels
     && gpu.result?.workload?.pixels === session.config.pixels
+    && gpu.result?.workload?.group_size === session.config.groupSize
     && cpu.result?.output?.checksum === gpu.result?.output?.checksum,
   );
 }

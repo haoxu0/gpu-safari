@@ -42,7 +42,8 @@ def test_learning_lab_exposes_accessible_progress_and_feedback_regions():
 
     assert 'aria-label="Lesson progress"' in html
     assert 'id="step-content"' in html
-    assert 'aria-live="polite"' in html
+    assert 'id="step-content" class="step-content"' in html
+    assert 'id="step-content" class="step-content" aria-live=' not in html
     assert 'id="processing-panel"' in html
     assert 'id="processing-scene"' in html
     assert 'id="processing-status"' in html
@@ -121,7 +122,8 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     assert "Run on my GPU" in app
     assert "Real dispatch and validated result" in (LAB / "src" / "dispatch-replay.mjs").read_text()
     assert "Compare results" in app
-    assert 'runWebGpuPaint({ pixels: state.session.config.pixels, groupSize: state.session.config.groupSize })' in app
+    assert 'runWebGpuPaint({ pixels: launchConfig.pixels, groupSize: launchConfig.groupSize })' in app
+    assert 'elements.back.disabled = state.lesson.stepIndex === 0 || Boolean(state.running)' in app
     assert 'fetch("/api/capabilities")' in app
     assert "Other hardware" in app
     assert "Modal NVIDIA run is billable" in app
@@ -155,6 +157,9 @@ def test_homepage_leads_with_guided_expedition_and_optional_hardware():
     assert "Take it further" in home
     assert 'id="featured-lesson"' in home
     assert 'src="./src/home.mjs"' in home
+
+    styles = (LAB / "styles.css").read_text()
+    assert ".progress-list { margin: 0; grid-template-columns: repeat(3, 1fr);" in styles
 
 
 def test_homepage_gpu_work_map_has_aligned_fixed_width_edges():

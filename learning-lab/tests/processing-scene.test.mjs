@@ -29,6 +29,8 @@ test("the GPU path exposes every asynchronous phase", () => {
   for (const phase of ["prepare", "submit", "work", "readback"]) {
     assert.match(html, new RegExp(`data-phase="${phase}"`));
   }
+  assert.doesNotMatch(html, /<button[^>]+data-phase=/);
+  assert.match(html, /role="status" aria-live="polite"/);
   assert.match(html, /CPU is free/);
 });
 

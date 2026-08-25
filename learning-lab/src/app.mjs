@@ -88,15 +88,17 @@ function playFrames(frames) {
 }
 
 async function runBackend(backend) {
+  const launchConfig = { ...state.session.config };
   playback.reset(); state.running = backend; state.error = null; state.selectedBackend = backend; state.selectedWorker = null; state.frame = sceneFrameState(); renderStep();
   try {
     if (backend === "cpu") {
       state.session = recordCpuRun(state.session, runCpuPaint({ pixels: state.session.config.pixels }));
       state.running = null; renderStep(); playFrames(cpuFrames());
     } else {
-      const result = await runWebGpuPaint({ pixels: state.session.config.pixels, groupSize: state.session.config.groupSize });
+      const result = await runWebGpuPaint({ pixels: launchConfig.pixels, groupSize: launchConfig.groupSize });
+      if (state.session.config.pixels !== launchConfig.pixels || state.session.config.groupSize !== launchConfig.groupSize) throw new Error("stale run");
       state.session = recordGpuRun(state.session, result);
-      state.dispatchReplay = buildDispatchReplay({ pixels: state.session.config.pixels, groupSize: state.session.config.groupSize, dispatch: result.workload.dispatch });
+      state.dispatchReplay = buildDispatchReplay({ pixels: launchConfig.pixels, groupSize: launchConfig.groupSize, dispatch: result.workload.dispatch });
       state.running = null; state.frame = state.dispatchReplay.frames[0]; renderStep(); playFrames(state.dispatchReplay.frames);
     }
   } catch (_error) { state.running = null; state.error = "This run could not complete. Try again or check browser GPU support."; renderStep(); }
@@ -116,13 +118,15 @@ async function runOtherProvider(provider) {
 }
 
 function renderStep() {
+  const focusedWorker = document.activeElement?.dataset?.gpuWorker;
   const step = currentStep();
   const copy = getLessonCopy(step);
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
   elements.mode.textContent = step === "configure" ? "Question + configuration" : step === "run" ? "Real CPU + GPU runs" : "Measured comparison";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${({ configure: configureMarkup, run: runMarkup, compare: compareMarkup })[step]()}`;
-  elements.panel.hidden = true; elements.back.disabled = state.lesson.stepIndex === 0; elements.next.disabled = step === "run" && !canCompare(state.session); elements.next.textContent = step === "compare" ? "Finish lesson ✓" : step === "run" ? "Compare results →" : "Start experiment →";
+  elements.panel.hidden = true; elements.back.disabled = state.lesson.stepIndex === 0 || Boolean(state.running); elements.next.disabled = Boolean(state.running) || (step === "run" && !canCompare(state.session)); elements.next.textContent = step === "compare" ? "Finish lesson ✓" : step === "run" ? "Compare results →" : "Start experiment →";
   renderProgress(); bindStepEvents();
+  if (focusedWorker !== undefined) document.querySelector(`[data-gpu-worker="${focusedWorker}"]`)?.focus();
 }
 
 async function loadCapabilities() {
