@@ -29,7 +29,7 @@ python -m pytest -q
 
 ## Run a real GPU shader in the browser
 
-Open the published site in a current browser, advance to **Race**, and choose **Run CPU ↔ GPU race**. The lesson runs the same paint operation in a JavaScript CPU loop and a real WGSL compute shader, verifies matching output, and compares 64, 65,536, or 1,048,576 pixels. No Python environment, companion server, account, or cloud charge is required. On macOS, the browser maps WebGPU work to Apple's Metal stack.
+Open the published site in a current browser, choose a workload, then run **CPU** and **GPU** separately. The lesson animates each processing model beside its code, runs the same paint operation in a JavaScript CPU loop and a real WGSL compute shader, verifies matching output, and charts 64, 65,536, or 1,048,576 pixels. No Python environment, companion server, account, or cloud charge is required. On macOS, the browser maps WebGPU work to Apple's Metal stack.
 
 The CPU time covers the JavaScript loop, while the GPU time covers browser submission through result readback. The comparison is deliberately not presented as pure kernel latency or a hardware benchmark. A CPU win is expected for very cheap work because dispatch and readback can cost more than the operation itself. Use the native companion below when you want Metal-specific execution and profiling.
 
@@ -44,7 +44,7 @@ python -m pip install -r learning-lab/requirements-mac.txt
 python learning-lab/server.py
 ```
 
-Open <http://127.0.0.1:8000>, choose **Start the 10-minute lesson**, reach **Race**, expand **Advanced hardware paths**, and select **Run on your Apple GPU**. The custom MLX Metal kernel returns measured latency, device information, correctness, and an output checksum. Tiny teaching kernels are dominated by dispatch overhead, so treat the timing as an observation rather than a performance score.
+Open <http://127.0.0.1:8000>, choose **Start the 10-minute lesson**, reach **Run**, expand **Other hardware**, and select **Run on your Apple GPU**. The custom MLX Metal kernel returns measured latency, device information, correctness, and an output checksum. Tiny teaching kernels are dominated by dispatch overhead, so treat the timing as an observation rather than a performance score.
 
 ## Compare with NVIDIA through Modal
 
@@ -56,7 +56,9 @@ The Apple and NVIDIA paths share one result contract while keeping their executi
 
 - Guided expedition homepage and shared lesson catalog
 - Available/upcoming trail map
-- Four visual stages: See, Experiment, Race, and Code
+- Three visual stages: Configure, Run, and Compare
+- Synchronized CPU and GPU processing animations with optional code
+- Shared-scale timing chart with honest below-resolution states
 - Accessible 8×8 thread-to-pixel work map
 - WebGPU, Metal, Triton, and CUDA worker-to-code comparison
 - Zero-install WebGPU compute execution in supported browsers

@@ -148,10 +148,9 @@ def test_homepage_leads_with_guided_expedition_and_optional_hardware():
 
     assert 'aria-label="Primary navigation"' in home
     assert 'id="primary-lesson-link"' in home
-    assert "See" in home
-    assert "Experiment" in home
-    assert "Race" in home
-    assert "Code" in home
+    assert "Configure" in home
+    assert "Run" in home
+    assert "Compare" in home
     assert "No GPU, install, or account required" in home
     assert "Take it further" in home
     assert 'id="featured-lesson"' in home
