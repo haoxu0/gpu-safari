@@ -100,7 +100,27 @@ test("WebGPU result labels browser round-trip timing instead of kernel latency",
   assert.deepEqual(result.workload.dispatch, {
     workgroups_x: 8,
     workgroups_y: 1,
-    total_workgroups: 8,
+    active_workgroups: 8,
+    dispatched_workgroups: 8,
+  });
+});
+
+test("WebGPU result distinguishes active groups from a padded 2D dispatch grid", () => {
+  const result = buildWebGpuResult({
+    device: "Apple GPU",
+    pixels: 1_048_576,
+    groupSize: 8,
+    elapsedMs: 2,
+    checksum: 524_288,
+    maxAbsError: 0,
+    dispatch: { workgroupsX: 65_535, workgroupsY: 3, rowStride: 524_280 },
+  });
+
+  assert.deepEqual(result.workload.dispatch, {
+    workgroups_x: 65_535,
+    workgroups_y: 3,
+    active_workgroups: 131_072,
+    dispatched_workgroups: 196_605,
   });
 });
 

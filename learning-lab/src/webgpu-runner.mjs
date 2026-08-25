@@ -81,7 +81,8 @@ export function buildWebGpuResult({ device, pixels, groupSize, elapsedMs, checks
       dispatch: {
         workgroups_x: dispatch.workgroupsX,
         workgroups_y: dispatch.workgroupsY,
-        total_workgroups: Math.ceil(pixels / groupSize),
+        active_workgroups: Math.ceil(pixels / groupSize),
+        dispatched_workgroups: dispatch.workgroupsX * dispatch.workgroupsY,
       },
     },
     correctness: { passed: maxAbsError <= 1e-6, max_abs_error: maxAbsError },
