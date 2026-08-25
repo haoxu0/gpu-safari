@@ -149,6 +149,12 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .race-insight, .race-caveat { margin: 4px 0 0; line-height: 1.5; }
 .race-insight { color: var(--ink); }
 .race-caveat { padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; }
+.dispatch-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; padding: 14px; border: 1px solid var(--green); border-radius: 12px; background: var(--green-soft); }
+.dispatch-facts > div { display: grid; gap: 3px; }
+.dispatch-facts span { color: var(--muted); font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }
+.dispatch-facts strong { color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dispatch-facts p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.dispatch-facts p:first-of-type { color: var(--ink); font-weight: 700; }
 
 .lesson-controls { min-height: 78px; padding: 16px clamp(24px, 6vw, 72px); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
 .button { min-height: 42px; padding: 10px 16px; border-radius: 9px; border: 1px solid transparent; font-weight: 700; cursor: pointer; }
@@ -184,6 +190,7 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .race-workload { align-items: stretch; flex-direction: column; }
   .race-workload select { width: 100%; }
   .execution-traces > div { grid-template-columns: 1fr; }
+  .dispatch-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

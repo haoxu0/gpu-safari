@@ -107,7 +107,7 @@ function phaseClass(phase, current) {
   return `process-phase${phase === current ? " is-current" : ""}`;
 }
 
-export function renderProcessingScene({ totalPixels, groupSize, selectedWorker = null, frame = sceneFrameState() }) {
+export function renderProcessingScene({ totalPixels, groupSize, selectedWorker = null, frame = sceneFrameState(), presentation = "simulation" }) {
   requirePositiveInteger(totalPixels, "totalPixels");
   requirePositiveInteger(groupSize, "groupSize");
   if (selectedWorker !== null && (!Number.isInteger(selectedWorker) || selectedWorker < 0 || selectedWorker >= totalPixels)) {
@@ -116,6 +116,7 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
 
   const viewFrame = sceneFrameState({ ...frame, selectedWorker });
   const layout = buildWorkgroupLayout({ totalPixels, groupSize });
+  const dispatchReplay = presentation === "dispatch-replay";
   const phaseLabels = {
     prepare: "Prepare commands",
     submit: "Submit · CPU is free",
@@ -124,7 +125,7 @@ export function renderProcessingScene({ totalPixels, groupSize, selectedWorker =
   };
 
   return `<div class="processing-scene" data-scene-phase="${viewFrame.phase}">
-    <div class="scene-legend"><span>Processing view</span><strong>Slowed visual · not timing</strong></div>
+    <div class="scene-legend"><span>${dispatchReplay ? "Real WebGPU dispatch" : "Processing view"}</span><strong>${dispatchReplay ? "Worker timing is illustrative" : "Slowed visual · not timing"}</strong></div>
     <div class="processing-lanes">
       <section class="processing-lane cpu-lane" aria-labelledby="cpu-lane-title">
         <header><span>CPU</span><strong id="cpu-lane-title">CPU · sequential</strong><small>one job at a time</small></header>

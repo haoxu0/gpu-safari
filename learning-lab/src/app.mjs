@@ -9,6 +9,7 @@ import { CODE_SAMPLES, getCodeSelection, getLessonCopy } from "./lesson-content.
 import { buildProcessingTimeline } from "./simulation-timeline.mjs";
 import { renderProcessingScene, sceneFrameState } from "./processing-scene.mjs";
 import { createPlaybackController } from "./playback-controller.mjs";
+import { buildDispatchReplay, renderDispatchFacts } from "./dispatch-replay.mjs";
 import { runWebGpuPaint, withWebGpuCapability } from "./webgpu-runner.mjs";
 import {
   RACE_WORKLOADS,
@@ -31,6 +32,7 @@ const state = {
   executionResult: null,
   executionError: null,
   executionRunning: false,
+  dispatchReplay: null,
 };
 
 const elements = {
@@ -67,6 +69,7 @@ function formatPixelCount(pixels) {
 }
 
 function scenePixelCount() {
+  if (currentStep() === "race" && state.dispatchReplay) return state.dispatchReplay.visiblePixels;
   return currentStep() === "experiment" ? state.experimentPixels : TOTAL_PIXELS;
 }
 
@@ -121,7 +124,7 @@ function seeMarkup() {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return `<div class="copy-column compact-copy visual-step-copy">
     <p class="lede">Watch the same 64 jobs move through two different processing paths.</p>
-    <div class="scene-controls"><button class="button button-quiet" type="button" data-reset-processing>Reset</button><button class="button button-primary" type="button" data-play-processing>${reducedMotion ? "Next phase" : "▶ Play processing"}</button></div>
+    <div class="scene-controls"><button class="button button-quiet" type="button" data-reset-processing>Reset</button><button class="button button-primary" type="button" data-play-processing>${reducedMotion ? "Next phase" : "▶ Play visualization"}</button></div>
   </div>`;
 }
 
@@ -147,12 +150,20 @@ function raceMarkup() {
   const webgpuReady = webgpu?.available === true;
   const appleReady = apple?.available === true;
   const modalReady = modal?.available === true;
+  const dispatchFacts = state.dispatchReplay && state.executionResult?.provider === "browser-race"
+    ? renderDispatchFacts({
+      replay: state.dispatchReplay,
+      device: state.executionResult.gpu.device,
+      pixels: state.executionResult.pixels,
+      groupSize: state.executionResult.gpu.workload.group_size,
+    })
+    : "";
   return `<div class="copy-column run-column">
-    <p class="lede">Now measure equivalent work. This trace uses real JavaScript and WebGPU results—not the slowed animation.</p>
+    <p class="lede">Run equivalent work for real, then watch a slowed replay built from the actual WebGPU dispatch shape.</p>
     <div class="provider-grid">
-      <article class="provider-card provider-card-featured"><span class="provider-kind">Local · instant · no cloud charge</span><h2>CPU ↔ GPU race</h2><p>Same operation. Same output. Compare a JavaScript loop with a WGSL compute shader.</p><div class="execution-traces" aria-label="CPU and GPU execution paths"><div><strong>CPU · JavaScript</strong><span class="trace-segments cpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div><div><strong>GPU · WebGPU</strong><span class="trace-segments gpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div></div><label class="race-workload" for="race-workload"><span>Workload</span><select id="race-workload" ${state.executionRunning ? "disabled" : ""}>${RACE_WORKLOADS.map((pixels) => `<option value="${pixels}" ${state.racePixels === pixels ? "selected" : ""}>${formatPixelCount(pixels)} pixels</option>`).join("")}</select></label><p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p><button class="button button-primary" type="button" data-run-provider="browser-race" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run CPU ↔ GPU race</button></article>
+      <article class="provider-card provider-card-featured"><span class="provider-kind">Local · instant · no cloud charge</span><h2>CPU ↔ GPU race</h2><p>Same operation. Same output. Compare a JavaScript loop with a WGSL compute shader, then visualize the real dispatch structure.</p><div class="execution-traces" aria-label="CPU and GPU execution paths"><div><strong>CPU · JavaScript</strong><span class="trace-segments cpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div><div><strong>GPU · WebGPU</strong><span class="trace-segments gpu-trace" aria-hidden="true">${"<i></i>".repeat(8)}</span></div></div><label class="race-workload" for="race-workload"><span>Workload</span><select id="race-workload" ${state.executionRunning ? "disabled" : ""}>${RACE_WORKLOADS.map((pixels) => `<option value="${pixels}" ${state.racePixels === pixels ? "selected" : ""}>${formatPixelCount(pixels)} pixels</option>`).join("")}</select></label><p class="provider-status ${webgpuReady ? "is-ready" : ""}">${webgpuReady ? "Ready in this browser · No install" : webgpu?.reason ?? "Checking this browser…"}</p><button class="button button-primary" type="button" data-run-provider="browser-race" ${webgpuReady && !state.executionRunning ? "" : "disabled"}>Run on my GPU + visualize</button></article>
       <details class="advanced-runs"><summary>Advanced hardware paths</summary><div class="provider-grid advanced-provider-grid"><article class="provider-card"><span class="provider-kind">Advanced local · companion server</span><h2>Apple GPU · MLX</h2><p>Runs a custom Metal kernel on this Mac.</p><p class="provider-status ${appleReady ? "is-ready" : ""}">${apple ? (appleReady ? "Ready on this Mac" : apple.reason) : "Checking local companion…"}</p><button class="button button-primary" type="button" data-run-provider="apple-mlx" ${appleReady && !state.executionRunning ? "" : "disabled"}>Run on your Apple GPU</button></article><article class="provider-card"><span class="provider-kind">Cloud · explicit confirmation</span><h2>NVIDIA L4 · Triton</h2><p>Runs the equivalent masked Triton kernel through your authenticated Modal account.</p><p class="provider-status ${modalReady ? "is-ready" : ""}">${modal ? (modalReady ? "Modal CLI detected" : modal.reason) : "Checking local companion…"}</p><label class="cost-confirm"><input id="modal-confirm" type="checkbox"> Modal uses billable NVIDIA L4 compute. I want to launch one run.</label><button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.executionRunning ? "" : "disabled"}>Run once on Modal</button></article></div></details>
-    </div><div id="gpu-run-status" class="gpu-run-status" aria-live="polite">${executionStatusMarkup()}</div>
+    </div><div id="gpu-run-status" class="gpu-run-status" aria-live="polite">${executionStatusMarkup()}</div>${dispatchFacts}
   </div>`;
 }
 
@@ -196,7 +207,13 @@ function raceStatusMarkup(result) {
 function renderScene() {
   if (elements.panel.hidden) return;
   const totalPixels = scenePixelCount();
-  elements.scene.innerHTML = renderProcessingScene({ totalPixels, groupSize: state.blockSize, selectedWorker: selectedWorkerForScene(totalPixels), frame: state.frame });
+  elements.scene.innerHTML = renderProcessingScene({
+    totalPixels,
+    groupSize: state.blockSize,
+    selectedWorker: selectedWorkerForScene(totalPixels),
+    frame: state.frame,
+    presentation: currentStep() === "race" ? "dispatch-replay" : "simulation",
+  });
   elements.status.textContent = elements.scene.querySelector("[data-scene-status]")?.textContent ?? "Processing view ready";
   elements.scene.querySelectorAll("[data-gpu-worker]").forEach((worker) => {
     const activate = () => {
@@ -250,7 +267,7 @@ function renderStep() {
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
   elements.mode.textContent = step === "race" ? "Real CPU + GPU execution" : "Visual processing";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${content}`;
-  elements.panel.hidden = step === "race";
+  elements.panel.hidden = step === "race" && state.dispatchReplay === null;
   elements.back.disabled = state.lesson.stepIndex === 0;
   elements.next.textContent = step === "code" ? "Finish lesson ✓" : "Continue →";
   renderProgress();
@@ -276,6 +293,7 @@ function bindStepEvents() {
     state.racePixels = Number(event.target.value);
     state.executionResult = null;
     state.executionError = null;
+    state.dispatchReplay = null;
     renderStep();
     document.querySelector("#race-workload")?.focus();
   });
@@ -298,6 +316,7 @@ async function loadCapabilities() {
 
 async function runRealGpu(provider) {
   const requestedRacePixels = state.racePixels;
+  let replayFrames = null;
   const confirmed = provider === "modal-triton" ? document.querySelector("#modal-confirm")?.checked === true : false;
   if (provider === "modal-triton" && !confirmed) {
     state.executionError = "Confirm the billable Modal L4 run before launching.";
@@ -307,6 +326,7 @@ async function runRealGpu(provider) {
   state.executionRunning = true;
   state.executionError = null;
   state.executionResult = null;
+  state.dispatchReplay = null;
   renderStep();
   try {
     if (provider === "browser-race") {
@@ -314,6 +334,9 @@ async function runRealGpu(provider) {
       const gpu = await runWebGpuPaint({ pixels: requestedRacePixels, groupSize: state.blockSize });
       if (cpu.output.checksum !== gpu.output.checksum) throw new Error("CPU and GPU outputs did not match.");
       state.executionResult = { provider: "browser-race", pixels: requestedRacePixels, cpu, gpu, summary: buildRaceSummary({ cpu, gpu, pixels: requestedRacePixels }) };
+      state.dispatchReplay = buildDispatchReplay({ pixels: requestedRacePixels, groupSize: state.blockSize, dispatch: gpu.workload.dispatch });
+      replayFrames = state.dispatchReplay.frames;
+      state.frame = replayFrames[0];
     } else if (provider === "browser-webgpu") {
       state.executionResult = await runWebGpuPaint({ pixels: 64, groupSize: state.blockSize });
     } else {
@@ -327,6 +350,15 @@ async function runRealGpu(provider) {
   } finally {
     state.executionRunning = false;
     renderStep();
+    if (replayFrames) {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reducedMotion) {
+        state.frame = replayFrames.at(-1);
+        renderScene();
+      } else {
+        playback.play(replayFrames, 180);
+      }
+    }
   }
 }
 

@@ -67,14 +67,23 @@ export function formatAdapterName(info) {
   return description || "Browser GPU";
 }
 
-export function buildWebGpuResult({ device, pixels, groupSize, elapsedMs, checksum, maxAbsError }) {
+export function buildWebGpuResult({ device, pixels, groupSize, elapsedMs, checksum, maxAbsError, dispatch }) {
   return {
     schema_version: "1.0.0",
     experiment: "paint-pixels",
     provider: "browser-webgpu",
     device,
     implementation: "WebGPU · WGSL",
-    workload: { pixels, dtype: "float32", group_size: groupSize },
+    workload: {
+      pixels,
+      dtype: "float32",
+      group_size: groupSize,
+      dispatch: {
+        workgroups_x: dispatch.workgroupsX,
+        workgroups_y: dispatch.workgroupsY,
+        total_workgroups: Math.ceil(pixels / groupSize),
+      },
+    },
     correctness: { passed: maxAbsError <= 1e-6, max_abs_error: maxAbsError },
     measurements: [{ name: "browser_round_trip", value: elapsedMs, unit: "ms" }],
     output: { checksum },
@@ -138,6 +147,7 @@ export async function runWebGpuPaint({ pixels = 64, groupSize = 8 } = {}) {
       elapsedMs,
       checksum: summary.checksum,
       maxAbsError: summary.maxAbsError,
+      dispatch,
     });
   } finally {
     output.destroy();

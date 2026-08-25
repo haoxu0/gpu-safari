@@ -90,3 +90,17 @@ test("workgroup geometry stays bounded and non-overlapping for every lesson size
     }
   }
 });
+
+test("a real dispatch replay distinguishes measured facts from illustrative scheduling", () => {
+  const html = renderProcessingScene({
+    totalPixels: 8,
+    groupSize: 4,
+    selectedWorker: null,
+    frame: sceneFrameState({ phase: "work", gpuPainted: [0, 1, 2, 3] }),
+    presentation: "dispatch-replay",
+  });
+
+  assert.match(html, /Real WebGPU dispatch/);
+  assert.match(html, /Worker timing is illustrative/);
+  assert.doesNotMatch(html, /Slowed visual · not timing/);
+});

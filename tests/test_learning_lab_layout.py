@@ -118,7 +118,9 @@ def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     assert 'step === "race" ? "Real CPU + GPU execution" : "Visual processing"' in app
     assert 'from "./webgpu-runner.mjs"' in app
     assert 'data-run-provider="browser-race"' in app
-    assert "Run CPU ↔ GPU race" in app
+    assert "Run on my GPU + visualize" in app
+    assert "Play visualization" in app
+    assert "Real dispatch and validated result" in (LAB / "src" / "dispatch-replay.mjs").read_text()
     assert "Same operation. Same output." in app
     assert "Browser-observed comparison" in app
     assert "No install" in app

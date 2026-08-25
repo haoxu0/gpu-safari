@@ -89,6 +89,7 @@ test("WebGPU result labels browser round-trip timing instead of kernel latency",
     elapsedMs: 1.25,
     checksum: 32,
     maxAbsError: 0,
+    dispatch: { workgroupsX: 8, workgroupsY: 1, rowStride: 64 },
   });
 
   assert.equal(result.provider, "browser-webgpu");
@@ -96,6 +97,11 @@ test("WebGPU result labels browser round-trip timing instead of kernel latency",
   assert.equal(result.measurements[0].unit, "ms");
   assert.equal(result.measurements[0].value, 1.25);
   assert.equal(result.correctness.passed, true);
+  assert.deepEqual(result.workload.dispatch, {
+    workgroups_x: 8,
+    workgroups_y: 1,
+    total_workgroups: 8,
+  });
 });
 
 test("opaque Metal adapter identifiers become a learner-friendly device label", () => {
