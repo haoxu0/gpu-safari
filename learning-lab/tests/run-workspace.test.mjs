@@ -19,6 +19,8 @@ test("GPU syntax tabs distinguish running code from equivalents", () => {
   const html = renderRunWorkspace({ backend:"webgpu", codePlatform:"triton", sceneHtml:"<svg></svg>", codeVisible:true, codeSelection:selection, platforms:["webgpu","cuda","triton","metal","hip"] });
   assert.match(html, /role="tablist"/); assert.match(html, /aria-selected="true"/);
   assert.match(html, /Equivalent syntax · not executed/); assert.match(html, /role="tabpanel"/);
+  assert.match(html, /tabindex="0"/); assert.match(html, /tabindex="-1"/);
+  assert.match(html, /aria-controls="gpu-code-panel"/); assert.match(html, /aria-labelledby="gpu-code-tab-triton"/);
   assert.doesNotMatch(html, /data-run="triton"/);
 });
 

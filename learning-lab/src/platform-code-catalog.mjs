@@ -11,19 +11,20 @@ function validate(platform, pixels=64, groupSize=8) {
 export function getPlatformDefinition(platform) { validate(platform); const [label, executionKind]=META[platform]; return {id:platform,label,ecosystem:label,executionKind}; }
 export function generatePlatformCode({platform,layer,pixels,groupSize}) {
   validate(platform,pixels,groupSize); if (!new Set(["host","kernel"]).has(layer)) throw new RangeError("invalid code layer");
+  const activeGroups=Math.ceil(pixels/groupSize), workgroupsX=Math.min(activeGroups,65_535), workgroupsY=Math.ceil(activeGroups/workgroupsX), rowStride=workgroupsX*groupSize;
   const host = {
-    webgpu:`const n_pixels = ${pixels};\nconst group_size = ${groupSize};\nconst encoder = device.createCommandEncoder();\npass.dispatchWorkgroups(Math.ceil(n_pixels / group_size));\ndevice.queue.submit([encoder.finish()]);\nawait readback.mapAsync(GPUMapMode.READ);`,
+    webgpu:`const n_pixels = ${pixels};\nconst group_size = ${groupSize};\nconst encoder = device.createCommandEncoder();\npass.dispatchWorkgroups(${workgroupsX}, ${workgroupsY});\ndevice.queue.submit([encoder.finish()]);\nawait readback.mapAsync(GPUMapMode.READ);`,
     cuda:`const int n_pixels = ${pixels};\nconst int group_size = ${groupSize};\nfloat* output; cudaMalloc(&output, n_pixels * sizeof(float));\npaint<<<(n_pixels + group_size - 1) / group_size, group_size>>>(output, n_pixels);\ncudaDeviceSynchronize();\ncudaMemcpy(host, output, n_pixels * sizeof(float), cudaMemcpyDeviceToHost);`,
     triton:`n_pixels = ${pixels}\nBLOCK_SIZE = ${groupSize}\noutput = torch.empty(n_pixels, device="cuda")\npaint[(triton.cdiv(n_pixels, BLOCK_SIZE),)](output, n_pixels, BLOCK_SIZE)\ntorch.cuda.synchronize()\nresult = output.cpu()`,
-    metal:`const uint n_pixels = ${pixels};\nconst uint group_size = ${groupSize};\nid<MTLCommandBuffer> commands = [queue commandBuffer];\n[encoder dispatchThreads:MTLSizeMake(n_pixels,1,1) threadsPerThreadgroup:MTLSizeMake(group_size,1,1)];\n[commands commit];\n[commands waitUntilCompleted];`,
+    metal:`const uint n_pixels = ${pixels};\nconst uint group_size = ${groupSize};\nid<MTLCommandBuffer> commands = [queue commandBuffer];\n[encoder setBuffer:output offset:0 atIndex:0];\n[encoder dispatchThreads:MTLSizeMake(n_pixels,1,1) threadsPerThreadgroup:MTLSizeMake(group_size,1,1)];\n[commands commit];\n[commands waitUntilCompleted];\nfloat* result = (float*)output.contents;`,
     hip:`const int n_pixels = ${pixels};\nconst int group_size = ${groupSize};\nfloat* output; hipMalloc(&output, n_pixels * sizeof(float));\nhipLaunchKernelGGL(paint, dim3((n_pixels+group_size-1)/group_size), dim3(group_size), 0, 0, output, n_pixels);\nhipDeviceSynchronize();\nhipMemcpy(host, output, n_pixels*sizeof(float), hipMemcpyDeviceToHost);`,
   };
   const kernel = {
-    webgpu:`const n_pixels = ${pixels}u;\n@compute @workgroup_size(${groupSize})\nfn paint(@builtin(global_invocation_id) id: vec3<u32>) { let pixel = id.x; if (pixel < n_pixels) { output[pixel] = 0.5; } }`,
-    cuda:`constexpr int n_pixels = ${pixels}; constexpr int group_size = ${groupSize};\n__global__ void paint(float* output) { int pixel = blockIdx.x * blockDim.x + threadIdx.x; if (pixel < n_pixels) output[pixel] = 0.5f; }`,
-    triton:`n_pixels: tl.constexpr = ${pixels}\nBLOCK_SIZE: tl.constexpr = ${groupSize}\nprogram = tl.program_id(0)\noffsets = program * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\ntl.store(output + offsets, 0.5, mask=offsets < n_pixels)`,
+    webgpu:`@group(0) @binding(0) var<storage, read_write> output: array<f32>;\nconst n_pixels = ${pixels}u; const row_stride = ${rowStride}u;\n@compute @workgroup_size(${groupSize})\nfn paint(@builtin(global_invocation_id) id: vec3<u32>) { let pixel = id.y * row_stride + id.x; if (pixel < n_pixels) { output[pixel] = 0.5; } }`,
+    cuda:`constexpr int group_size = ${groupSize};\n__global__ void paint(float* output, int n_pixels) { int pixel = blockIdx.x * blockDim.x + threadIdx.x; if (pixel < n_pixels) output[pixel] = 0.5f; } // ${pixels}`,
+    triton:`@triton.jit\ndef paint(output, n_pixels: tl.constexpr, BLOCK_SIZE: tl.constexpr):\n    program = tl.program_id(0)\n    offsets = program * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    tl.store(output + offsets, 0.5, mask=offsets < n_pixels)\n# n_pixels=${pixels}, BLOCK_SIZE=${groupSize}`,
     metal:`constant uint n_pixels = ${pixels}; constant uint group_size = ${groupSize};\nkernel void paint(device float* output [[buffer(0)]], uint pixel [[thread_position_in_grid]]) { if (pixel < n_pixels) output[pixel] = 0.5f; }`,
-    hip:`constexpr int n_pixels = ${pixels}; constexpr int group_size = ${groupSize};\n__global__ void paint(float* output) { int pixel = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; if (pixel < n_pixels) output[pixel] = 0.5f; }`,
+    hip:`constexpr int group_size = ${groupSize};\n__global__ void paint(float* output, int n_pixels) { int pixel = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; if (pixel < n_pixels) output[pixel] = 0.5f; } // ${pixels}`,
   }; return (layer === "host" ? host : kernel)[platform];
 }
 export function getPlatformPhaseMapping({platform,phase,workerId,pixels,groupSize}) {
