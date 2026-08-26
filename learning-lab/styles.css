@@ -60,6 +60,14 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .question-preview { padding: 16px; display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; border-radius: 12px; background: light-dark(#101713, #080d0a); color: #eef7f1; }
 .question-preview span { color: #55d895; font: 800 11px ui-monospace, monospace; }
 .run-actions { display: flex; gap: 9px; }
+.run-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.run-settings label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.run-settings select { min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.config-notice { margin: 0; color: var(--green); font-size: 12px; }
+.syntax-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.syntax-tabs [role="tab"] { min-height: 44px; padding: 8px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-weight: 700; }
+.syntax-tabs [aria-selected="true"] { border-color: var(--green); color: var(--ink); }
+.execution-badge { width: fit-content; padding: 5px 8px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 750; }
 .run-status { min-height: 38px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px 18px; border-radius: 9px; background: var(--canvas); color: var(--muted); font-size: 11px; }
 .run-status.is-running { color: var(--green); }
 .run-status.is-error { color: #b24f4f; }
@@ -185,6 +193,7 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .pixel-link-map { grid-template-columns: repeat(8, minmax(16px, 1fr)); }
   .config-grid { grid-template-columns: 1fr; }
   .run-actions { flex-direction: column; }
+  .run-settings { grid-template-columns: 1fr; }
   .race-workload { align-items: stretch; flex-direction: column; }
   .race-workload select { width: 100%; }
   .execution-traces > div { grid-template-columns: 1fr; }

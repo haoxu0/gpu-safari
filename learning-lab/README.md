@@ -33,6 +33,8 @@ Open the published site in a current browser, choose a workload, then run **CPU*
 
 The CPU time covers the JavaScript loop, while the GPU time covers browser submission through result readback. The comparison is deliberately not presented as pure kernel latency or a hardware benchmark. A CPU win is expected for very cheap work because dispatch and readback can cost more than the operation itself. Use the native companion below when you want Metal-specific execution and profiling.
 
+During the Run stage, change workload size, workers per group, or visualization speed and inspect synchronized code beside the processing view. WebGPU is labeled as the browser execution target; CUDA, Triton, Metal, and HIP are clearly labeled equivalent syntax and are not executed by the browser.
+
 ## Run a real Metal kernel on Apple silicon
 
 On an Apple silicon Mac with macOS 14 or newer, create an isolated environment and start the companion server:
