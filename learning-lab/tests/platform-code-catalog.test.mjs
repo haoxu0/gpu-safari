@@ -20,6 +20,7 @@ test("displayed host and kernel pairs agree on their signatures and real WebGPU 
   const webHost=generatePlatformCode({platform:"webgpu",layer:"host",pixels:1_048_576,groupSize:8});
   assert.match(wgsl,/var<storage, read_write> output/); assert.match(wgsl,/row_stride = 524280u/); assert.match(wgsl,/id\.y \* row_stride \+ id\.x/);
   assert.match(webHost,/dispatchWorkgroups\(65535, 3\)/);
+  assert.match(webHost,/beginComputePass[\s\S]*setPipeline[\s\S]*setBindGroup[\s\S]*pass\.end[\s\S]*copyBufferToBuffer/);
   for(const platform of ["cuda","hip"]){const host=generatePlatformCode({platform,layer:"host",pixels:64,groupSize:8});const kernel=generatePlatformCode({platform,layer:"kernel",pixels:64,groupSize:8});assert.match(host,/output, n_pixels/);assert.match(kernel,/output, int n_pixels/);}
   assert.match(generatePlatformCode({platform:"triton",layer:"kernel",pixels:64,groupSize:8}),/@triton\.jit[\s\S]*def paint\(output/);
   assert.match(generatePlatformCode({platform:"metal",layer:"host",pixels:64,groupSize:8}),/setBuffer[\s\S]*contents/);

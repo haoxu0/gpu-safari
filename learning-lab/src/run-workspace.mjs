@@ -1,9 +1,9 @@
 import { CODE_SAMPLES } from "./lesson-content.mjs";
 import { generatePlatformCode, getPlatformDefinition, getPlatformPhaseMapping } from "./platform-code-catalog.mjs";
 function escapeHtml(v){return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");}
-export function buildCodePhaseSelection({executionBackend,codePlatform,phase,workerId,pixels,groupSize,gpuHasRun=false}){
- if(executionBackend==="cpu")return{source:CODE_SAMPLES.cpu,highlightedToken:phase==="work"?"output[pixel] = 0.5":"new Float32Array(pixels)",caption:phase==="work"?"The CPU loop paints one pixel per iteration.":"The CPU prepares one output array.",platformLabel:"CPU · JavaScript",executionLabel:"Running on CPU",executionKind:"browser",layer:"kernel"};
- const mappedPhase=phase==="ready"?"prepare":phase; const mapping=getPlatformPhaseMapping({platform:codePlatform,phase:mappedPhase,workerId:workerId??0,pixels,groupSize}); const definition=getPlatformDefinition(codePlatform);
+export function buildCodePhaseSelection({executionBackend,codePlatform,phase,workerId,pixels,groupSize,gpuHasRun=false,cpuHasRun=false}){
+ if(executionBackend==="cpu"){const working=phase==="work"||phase==="cpu";return{source:CODE_SAMPLES.cpu,highlightedToken:working?"output[pixel] = 0.5":"new Float32Array(pixels)",caption:working?"The CPU loop paints one pixel per iteration.":"The CPU prepares one output array.",platformLabel:"CPU · JavaScript",executionLabel:cpuHasRun?"Ran in this browser":"CPU execution target",executionKind:"browser",layer:"kernel"};}
+ const mappedPhase=phase==="ready"?"prepare":phase==="cpu"?"work":phase; const mapping=getPlatformPhaseMapping({platform:codePlatform,phase:mappedPhase,workerId:workerId??0,pixels,groupSize}); const definition=getPlatformDefinition(codePlatform);
  return{...mapping,source:generatePlatformCode({platform:codePlatform,layer:mapping.layer,pixels,groupSize}),platformLabel:definition.label,executionKind:definition.executionKind,executionLabel:codePlatform==="webgpu"?(gpuHasRun?"Running in this browser":"Browser execution target"):"Equivalent syntax · not executed"};
 }
 function highlightedCode(s){const i=s.source.indexOf(s.highlightedToken);return i<0?escapeHtml(s.source):`${escapeHtml(s.source.slice(0,i))}<mark>${escapeHtml(s.highlightedToken)}</mark>${escapeHtml(s.source.slice(i+s.highlightedToken.length))}`;}

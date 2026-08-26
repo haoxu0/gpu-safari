@@ -14,7 +14,7 @@ import { canCompare, createExperimentSession, recordCpuRun, recordGpuRun, setExp
 const GROUP_SIZES = [4, 8, 16, 32];
 const STEP_LABELS = ["Question", "Run", "Compare"];
 const ANIMATION_DELAYS = Object.freeze({ slow: { cpu: 60, gpu: 360 }, normal: { cpu: 24, gpu: 180 }, instant: { cpu: 0, gpu: 0 } });
-const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null };
+const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codeMode: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null };
 const elements = { back: document.querySelector("#back-button"), next: document.querySelector("#next-button"), content: document.querySelector("#step-content"), count: document.querySelector("#step-count"), mode: document.querySelector("#execution-mode"), progress: document.querySelector("#progress-list"), panel: document.querySelector("#processing-panel") };
 const playback = createPlaybackController({ schedule: (callback, delayMs) => window.setTimeout(callback, delayMs), cancel: (id) => window.clearTimeout(id), onFrame: (frame) => { state.frame = frame; renderStep(); } });
 
@@ -51,15 +51,15 @@ function runStatus() {
 function runMarkup() {
   const total = visiblePixels();
   const scene = renderProcessingScene({ totalPixels: total, groupSize: state.session.config.groupSize, selectedWorker: state.selectedWorker !== null && state.selectedWorker < total ? state.selectedWorker : null, frame: state.frame, presentation: state.selectedBackend === "webgpu" ? "dispatch-replay" : "simulation" });
-  const codeSelection = buildCodePhaseSelection({ executionBackend: state.selectedBackend, codePlatform: state.codePlatform, phase: state.frame.phase, workerId: state.selectedWorker, pixels: state.session.config.pixels, groupSize: state.session.config.groupSize, gpuHasRun: Boolean(state.session.gpu) });
+  const codeSelection = buildCodePhaseSelection({ executionBackend: state.codeMode, codePlatform: state.codePlatform, phase: state.frame.phase, workerId: state.selectedWorker, pixels: state.session.config.pixels, groupSize: state.session.config.groupSize, gpuHasRun: Boolean(state.session.gpu), cpuHasRun: Boolean(state.session.cpu) });
   const dispatchFacts = state.dispatchReplay && state.session.gpu ? renderDispatchFacts({ replay: state.dispatchReplay, device: state.session.gpu.result.device, pixels: state.session.config.pixels, groupSize: state.session.config.groupSize }) : "";
-  const workspace = renderRunWorkspace({ backend: state.selectedBackend, codePlatform: state.codePlatform, platforms: GPU_CODE_PLATFORMS, sceneHtml: scene, codeVisible: state.codeVisible, codeSelection, dispatchFacts });
+  const workspace = renderRunWorkspace({ backend: state.codeMode, codePlatform: state.codePlatform, platforms: GPU_CODE_PLATFORMS, sceneHtml: scene, codeVisible: state.codeVisible, codeSelection, dispatchFacts });
   const appleReady = providerCapability("apple-mlx")?.available === true;
   const modalReady = providerCapability("modal-triton")?.available === true;
   const { pixels, groupSize } = state.session.config;
   const settings = `<div class="run-settings"><label>Pixels<select id="run-pixels" ${state.running ? "disabled" : ""}>${RACE_WORKLOADS.map((v) => `<option value="${v}" ${v === pixels ? "selected" : ""}>${formatCount(v)}</option>`).join("")}</select></label><label>Workers per group<select id="run-group" ${state.running ? "disabled" : ""}>${GROUP_SIZES.map((v) => `<option value="${v}" ${v === groupSize ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Visualization speed<select id="run-speed">${Object.keys(ANIMATION_DELAYS).map((v) => `<option value="${v}" ${v === state.animationSpeed ? "selected" : ""}>${v}</option>`).join("")}</select></label></div>`;
   const gpuCapability = webgpuCapability();
-  const explore = gpuCapability?.available ? "" : `<button class="button button-quiet" type="button" data-explore-gpu>Explore GPU syntax</button><p class="provider-status">WebGPU is unavailable here, but equivalent syntax remains explorable.</p>`;
+  const explore = `<button class="button button-quiet" type="button" data-explore-gpu>Explore GPU syntax</button>${gpuCapability?.available ? "" : '<p class="provider-status">WebGPU is unavailable here, but equivalent syntax remains explorable.</p>'}`;
   return `<div class="run-stage"><p class="lede">Run each path separately. Animation follows the operation; measured time comes from the browser.</p>${settings}${state.configNotice ? `<p class="config-notice">${state.configNotice}</p>` : ""}<div class="run-actions"><button class="button button-quiet" type="button" data-run="cpu" ${state.running ? "disabled" : ""}>Run on CPU</button><button class="button button-primary" type="button" data-run="webgpu" ${gpuCapability?.available && !state.running ? "" : "disabled"}>Run on my GPU</button>${explore}</div>${runStatus()}${workspace}<details class="advanced-runs"><summary>Other hardware</summary><div class="advanced-provider-grid"><button class="button button-quiet" type="button" data-run-provider="apple-mlx" ${appleReady && !state.running ? "" : "disabled"}>Run on your Apple GPU</button><label class="cost-confirm"><input id="modal-confirm" type="checkbox"> I understand a Modal NVIDIA run is billable.</label><button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.running ? "" : "disabled"}>Run once on Modal</button><p class="provider-status">${state.otherStatus ?? "Optional hardware runs do not change the browser comparison."}</p></div></details></div>`;
 }
 
@@ -83,7 +83,7 @@ function bindStepEvents() {
   document.querySelectorAll("#experiment-pixels, #experiment-group").forEach((control) => control.addEventListener("change", () => { state.session = setExperimentConfig(state.session, { pixels: Number(document.querySelector("#experiment-pixels").value), groupSize: Number(document.querySelector("#experiment-group").value) }); state.dispatchReplay = null; state.frame = sceneFrameState(); renderStep(); }));
   document.querySelectorAll("[data-prediction]").forEach((button) => button.addEventListener("click", () => { state.session = { ...state.session, prediction: button.dataset.prediction }; renderStep(); }));
   document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => runBackend(button.dataset.run)));
-  document.querySelector("[data-explore-gpu]")?.addEventListener("click", () => { state.selectedBackend = "webgpu"; state.codePlatform = "webgpu"; renderStep(); });
+  document.querySelector("[data-explore-gpu]")?.addEventListener("click", () => { state.codeMode = "webgpu"; state.codePlatform = "webgpu"; renderStep(); });
   document.querySelectorAll("[data-run-provider]").forEach((button) => button.addEventListener("click", () => runOtherProvider(button.dataset.runProvider)));
   document.querySelector("[data-toggle-code]")?.addEventListener("click", () => { state.codeVisible = !state.codeVisible; renderStep(); });
   document.querySelectorAll("[data-code-platform]").forEach((tab) => {
@@ -103,7 +103,7 @@ function playFrames(frames) {
 
 async function runBackend(backend) {
   const launchConfig = { ...state.session.config };
-  playback.reset(); state.running = backend; state.error = null; state.configNotice = null; state.selectedBackend = backend; state.codePlatform = "webgpu"; state.selectedWorker = null; state.frame = sceneFrameState(); renderStep();
+  playback.reset(); state.running = backend; state.error = null; state.configNotice = null; state.selectedBackend = backend; state.codeMode = backend; state.codePlatform = "webgpu"; state.selectedWorker = null; state.frame = sceneFrameState(); renderStep();
   try {
     if (backend === "cpu") {
       state.session = recordCpuRun(state.session, runCpuPaint({ pixels: state.session.config.pixels }));

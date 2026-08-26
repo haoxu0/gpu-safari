@@ -4,8 +4,13 @@ import assert from "node:assert/strict";
 import { buildCodePhaseSelection, renderRunWorkspace } from "../src/run-workspace.mjs";
 
 test("CPU and WebGPU phases select the code that performs the visible work", () => {
-  assert.match(buildCodePhaseSelection({ executionBackend: "cpu", codePlatform: "webgpu", phase: "work", workerId: null, pixels:64, groupSize:8 }).highlightedToken, /output\[pixel\]/);
+  assert.match(buildCodePhaseSelection({ executionBackend: "cpu", codePlatform: "webgpu", phase: "cpu", workerId: null, pixels:64, groupSize:8 }).highlightedToken, /output\[pixel\]/);
   assert.match(buildCodePhaseSelection({ executionBackend: "webgpu", codePlatform: "webgpu", phase: "prepare", workerId: null, pixels:64, groupSize:8 }).highlightedToken, /createCommandEncoder/);
+});
+
+test("CPU code distinguishes an execution target from a completed run",()=>{
+ assert.equal(buildCodePhaseSelection({executionBackend:"cpu",codePlatform:"webgpu",phase:"ready",workerId:null,pixels:64,groupSize:8,cpuHasRun:false}).executionLabel,"CPU execution target");
+ assert.equal(buildCodePhaseSelection({executionBackend:"cpu",codePlatform:"webgpu",phase:"cpu",workerId:null,pixels:64,groupSize:8,cpuHasRun:true}).executionLabel,"Ran in this browser");
 });
 
 test("a selected GPU worker highlights the shader invocation", () => {
