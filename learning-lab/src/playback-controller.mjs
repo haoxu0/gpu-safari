@@ -1,4 +1,4 @@
-export function createPlaybackController({ schedule, cancel, onFrame }) {
+export function createPlaybackController({ schedule, cancel, onFrame, onStateChange = () => {} }) {
   if (typeof schedule !== "function" || typeof cancel !== "function" || typeof onFrame !== "function") {
     throw new TypeError("schedule, cancel, and onFrame must be functions");
   }
@@ -6,13 +6,29 @@ export function createPlaybackController({ schedule, cancel, onFrame }) {
   let scheduledId = null;
   let running = false;
   let generation = 0;
+  let frames = [];
+  let index = -1;
+
+  function notify() { onStateChange({ running, index, count: frames.length }); }
 
   function cancelPending() {
     if (scheduledId !== null) cancel(scheduledId);
     scheduledId = null;
     generation += 1;
     running = false;
+    notify();
   }
+
+  function load(nextFrames) {
+    if (!Array.isArray(nextFrames) || nextFrames.length === 0) throw new RangeError("frames must be a non-empty array");
+    cancelPending(); frames = [...nextFrames]; index = -1; notify();
+  }
+
+  function seek(nextIndex) {
+    if (!Number.isInteger(nextIndex) || nextIndex < 0 || nextIndex >= frames.length) throw new RangeError("frame index is outside the loaded timeline");
+    cancelPending(); index = nextIndex; onFrame(frames[index]); notify();
+  }
+  function reset() { cancelPending(); frames = []; index = -1; notify(); }
 
   function play(frames, delayMs) {
     if (!Array.isArray(frames) || frames.length === 0) {
@@ -22,18 +38,21 @@ export function createPlaybackController({ schedule, cancel, onFrame }) {
       throw new RangeError("delayMs must be a non-negative number");
     }
 
-    cancelPending();
+    load(frames);
     const activeGeneration = generation;
-    let index = 0;
+    index = -1;
     running = true;
+    notify();
 
     const advance = () => {
       if (activeGeneration !== generation) return;
       scheduledId = null;
-      onFrame(frames[index]);
       index += 1;
-      if (index >= frames.length) {
+      onFrame(frames[index]);
+      notify();
+      if (index >= frames.length - 1) {
         running = false;
+        notify();
         return;
       }
       scheduledId = schedule(advance, delayMs);
@@ -44,8 +63,12 @@ export function createPlaybackController({ schedule, cancel, onFrame }) {
 
   return {
     play,
+    load,
+    seek,
     pause: cancelPending,
-    reset: cancelPending,
+    reset,
     isRunning: () => running,
+    currentIndex: () => index,
+    frameCount: () => frames.length,
   };
 }

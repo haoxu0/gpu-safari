@@ -35,3 +35,9 @@ test("arrow navigation remains inside the logical dispatch grid", () => {
   assert.equal(moveGroupSelection({ selectedGroup: 1, direction: "down", columns: 4, groupCount: 6 }), 5);
   assert.equal(moveGroupSelection({ selectedGroup: 5, direction: "right", columns: 4, groupCount: 6 }), 5);
 });
+
+test("a representative scene preserves the full observed workload", () => {
+  const scene = projectDispatchWorld({ frame:{phase:"work",cpuPainted:[],gpuPainted:[0,1,2,3,4,5,6,7]}, pixels:64, workloadPixels:65536, groupSize:8, dispatch:{workgroups_x:8192,workgroups_y:1,active_workgroups:8192,dispatched_workgroups:8192}, selectedGroup:0, executionKind:"gpu" });
+  assert.equal(scene.groups.length,8);
+  assert.equal(scene.truth.observed,"65536 pixels · 8192 active workgroups");
+});

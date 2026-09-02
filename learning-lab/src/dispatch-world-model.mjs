@@ -17,7 +17,7 @@ export function moveGroupSelection({ selectedGroup, direction, columns, groupCou
   return candidate;
 }
 
-export function projectDispatchWorld({ frame, pixels, groupSize, dispatch, selectedGroup = 0, executionKind, reducedMotion = false }) {
+export function projectDispatchWorld({ frame, pixels, workloadPixels = pixels, groupSize, dispatch, selectedGroup = 0, executionKind, reducedMotion = false }) {
   requirePositive(pixels, "pixels");
   requirePositive(groupSize, "groupSize");
   if (!frame || !(frame.phase in PHASE_COMMAND)) throw new RangeError("frame has an unknown phase");
@@ -25,7 +25,7 @@ export function projectDispatchWorld({ frame, pixels, groupSize, dispatch, selec
   const painted = executionKind === "cpu" ? frame.cpuPainted : frame.gpuPainted;
   const output = Array.from({ length: pixels }, (_, id) => ({ id, state: painted.includes(id) ? "complete" : "waiting" }));
   const groupCount = executionKind === "gpu" ? Math.ceil(pixels / groupSize) : 0;
-  if (executionKind === "gpu" && (!dispatch || dispatch.active_workgroups !== groupCount)) throw new RangeError("dispatch must describe the active workload");
+  if (executionKind === "gpu" && (!dispatch || dispatch.active_workgroups < groupCount)) throw new RangeError("dispatch must describe the active workload");
   if (groupCount && (!Number.isInteger(selectedGroup) || selectedGroup < 0 || selectedGroup >= groupCount)) throw new RangeError("selectedGroup is outside the active workload");
   const completeGroups = Math.floor(painted.length / groupSize);
   const groups = Array.from({ length: groupCount }, (_, id) => ({
@@ -44,7 +44,7 @@ export function projectDispatchWorld({ frame, pixels, groupSize, dispatch, selec
     selection: executionKind === "gpu" ? { groupId: selectedGroup, workerStart: start, workerEnd: end, pixelStart: start, pixelEnd: end } : null,
     camera: reducedMotion ? "still" : "angled",
     truth: {
-      observed: executionKind === "gpu" ? `${pixels} pixels · ${dispatch.active_workgroups} active workgroups` : `${painted.length} of ${pixels} pixels painted`,
+      observed: executionKind === "gpu" ? `${workloadPixels} pixels · ${dispatch.active_workgroups} active workgroups` : `${painted.length} of ${workloadPixels} pixels painted`,
       illustrated: executionKind === "gpu" ? "Workgroup waves are illustrated" : "CPU progress follows the JavaScript loop",
     },
   };

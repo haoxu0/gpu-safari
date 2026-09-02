@@ -2,23 +2,25 @@
 
 The website is a platform-neutral, browser-based entrance to GPU Safari. Its guided homepage leads into **Paint Pixels in Parallel**, which introduces thread-to-data mapping before asking learners to configure a GPU provider. The trail map previews where the curriculum goes next without presenting unfinished lessons as available.
 
-The lesson follows four visual steps: watch processing, reshape the workers, measure the browser, and connect one worker to real GPU code. The first two steps are slowed SVG explanations, not hardware benchmarks; they never invent GPU timing data.
+The lesson follows three visual stages: ask and configure, run both paths, and compare measured results. Processing animation is a teaching view rather than a hardware scheduler trace; it never invents GPU timing data.
 
-## Run the static website
+## Run the website
 
 From the repository root:
 
 ```bash
-python -m http.server 8000
+npm --prefix learning-lab install
+npm --prefix learning-lab run dev
 ```
 
-Then open <http://localhost:8000/learning-lab/>. The homepage, trail map, and complete first lesson work as static files.
+Then open the local URL printed by Vite. The homepage, trail map, and complete first lesson are built as static pages.
 
-No JavaScript packages or GPU are required. Run the lesson-model tests with:
+Run the JavaScript tests and production build with:
 
 ```bash
 cd learning-lab
 npm test
+npm run build
 ```
 
 Run the full repository test suite with:
@@ -34,6 +36,8 @@ Open the published site in a current browser, choose a workload, then run **CPU*
 The CPU time covers the JavaScript loop, while the GPU time covers browser submission through result readback. The comparison is deliberately not presented as pure kernel latency or a hardware benchmark. A CPU win is expected for very cheap work because dispatch and readback can cost more than the operation itself. Use the native companion below when you want Metal-specific execution and profiling.
 
 During the Run stage, change workload size, workers per group, or visualization speed and inspect synchronized code beside the processing view. WebGPU is labeled as the browser execution target; CUDA, Triton, Metal, and HIP are clearly labeled equivalent syntax and are not executed by the browser.
+
+Add `?renderer=vgpu` to the Paint Pixels URL to preview the 2.5D dispatch world during rollout. It uses VGPU only for presentation: the existing raw WebGPU runner remains responsible for the real compute dispatch, output validation, and browser-observed timing. Workgroup waves are labeled illustrative because browsers do not expose physical scheduling.
 
 ## Run a real Metal kernel on Apple silicon
 
@@ -59,6 +63,7 @@ The Apple and NVIDIA paths share one result contract while keeping their executi
 - Guided expedition homepage and shared lesson catalog
 - Available/upcoming trail map
 - Three visual stages: Configure, Run, and Compare
+- Feature-flagged 2.5D VGPU dispatch visualization with an accessible fallback
 - Synchronized CPU and GPU processing animations with optional code
 - Shared-scale timing chart with honest below-resolution states
 - Accessible 8×8 thread-to-pixel work map
@@ -74,4 +79,4 @@ The browser simulation remains available when neither real backend is configured
 
 ## Publish with GitHub Pages
 
-The Pages workflow tests the repository and publishes `learning-lab/` as a static artifact after changes merge to `main`. In the repository settings, choose **Settings → Pages → Source → GitHub Actions** once. The site itself has no GitHub-specific runtime dependency and can also be hosted by any static file server.
+The Pages workflow installs pinned dependencies, tests the repository, builds the website, and publishes `learning-lab/dist/` after changes merge to `main`. In the repository settings, choose **Settings → Pages → Source → GitHub Actions** once. The built site has no GitHub-specific runtime dependency and can also be hosted by any static file server.
