@@ -110,3 +110,10 @@ test("seek renders one deterministic frame and reports its index", () => {
   assert.equal(controller.isRunning(), false);
   assert.equal(states.at(-1).index, 2);
 });
+
+test("loading a timeline does not publish a transient empty state", () => {
+  const states=[]; const scheduler=createTestScheduler();
+  const controller=createPlaybackController({schedule:scheduler.schedule,cancel:scheduler.cancel,onFrame:()=>{},onStateChange:state=>states.push(state)});
+  controller.load([{phase:"prepare"},{phase:"submit"}]);
+  assert.deepEqual(states.map(({count})=>count),[2]);
+});

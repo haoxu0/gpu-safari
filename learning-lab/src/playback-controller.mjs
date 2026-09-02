@@ -11,17 +11,17 @@ export function createPlaybackController({ schedule, cancel, onFrame, onStateCha
 
   function notify() { onStateChange({ running, index, count: frames.length }); }
 
-  function cancelPending() {
+  function cancelPending(shouldNotify = true) {
     if (scheduledId !== null) cancel(scheduledId);
     scheduledId = null;
     generation += 1;
     running = false;
-    notify();
+    if (shouldNotify) notify();
   }
 
   function load(nextFrames) {
     if (!Array.isArray(nextFrames) || nextFrames.length === 0) throw new RangeError("frames must be a non-empty array");
-    cancelPending(); frames = [...nextFrames]; index = -1; notify();
+    cancelPending(false); frames = [...nextFrames]; index = -1; notify();
   }
 
   function seek(nextIndex) {
