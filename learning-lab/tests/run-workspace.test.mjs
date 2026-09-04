@@ -35,3 +35,16 @@ test("code can be hidden without removing the processing visualization", () => {
   assert.doesNotMatch(hidden, /run-code-panel/);
   assert.match(hidden, /Show code/);
 });
+
+test("the VGPU workspace exposes timeline controls and accessible scene truth", () => {
+  const selection = buildCodePhaseSelection({ executionBackend:"webgpu", codePlatform:"webgpu", phase:"work", workerId:8, pixels:64, groupSize:8, gpuHasRun:true });
+  const html = renderRunWorkspace({ backend:"webgpu", codePlatform:"webgpu", sceneHtml:"", codeVisible:true, codeSelection:selection, platforms:["webgpu"], rendererKind:"vgpu", sceneSummary:"Workgroup 1 paints pixels 8 through 15", sceneTruth:{ observed:"64 pixels · 8 active workgroups", illustrated:"Workgroup waves are illustrated" }, timeline:{ index:2, count:6, running:false } });
+  assert.match(html, /<canvas[^>]+data-vgpu-dispatch/);
+  assert.match(html, /data-vgpu-dispatch[^>]+tabindex="0"/);
+  assert.match(html, /data-playback="play"/);
+  assert.match(html, /data-playback="restart"/);
+  assert.match(html, /type="range"[^>]+value="2"/);
+  assert.match(html, /64 pixels · 8 active workgroups/);
+  assert.match(html, /Workgroup waves are illustrated/);
+  assert.match(html, /role="status"[^>]*>Workgroup 1 paints pixels 8 through 15/);
+});

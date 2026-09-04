@@ -7,22 +7,50 @@ import { runCpuPaint, buildRaceSummary, RACE_WORKLOADS } from "./race-runner.mjs
 import { runWebGpuPaint, withWebGpuCapability } from "./webgpu-runner.mjs";
 import { buildDispatchReplay, renderDispatchFacts } from "./dispatch-replay.mjs";
 import { buildMeasurementChartModel, renderMeasurementChart } from "./measurement-chart.mjs";
-import { buildCodePhaseSelection, renderRunWorkspace } from "./run-workspace.mjs";
+import { buildCodePhaseSelection, renderRunCodePanel, renderRunWorkspace } from "./run-workspace.mjs";
 import { GPU_CODE_PLATFORMS } from "./platform-code-catalog.mjs";
 import { canCompare, createExperimentSession, recordCpuRun, recordGpuRun, setExperimentConfig } from "./experiment-session.mjs";
+import { projectDispatchWorld, moveGroupSelection } from "./dispatch-world-model.mjs";
+import { createVgpuDispatchRenderer } from "./vgpu-dispatch-renderer.mjs";
+import { mountPreferredRenderer, requestedRenderer } from "./renderer-selection.mjs";
 
 const GROUP_SIZES = [4, 8, 16, 32];
 const STEP_LABELS = ["Question", "Run", "Compare"];
 const ANIMATION_DELAYS = Object.freeze({ slow: { cpu: 60, gpu: 360 }, normal: { cpu: 24, gpu: 180 }, instant: { cpu: 0, gpu: 0 } });
-const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codeMode: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null };
+const wantsVgpu = requestedRenderer(window.location.search) === "vgpu";
+const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codeMode: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, selectedGroup: 0, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null, rendererKind: wantsVgpu ? "vgpu" : "legacy", renderer: null, rendererCanvas: null, rendererFallback: null, renderedCodePhase: null, timeline: { index: 0, count: 1, running: false }, timelineFrames: [] };
 const elements = { back: document.querySelector("#back-button"), next: document.querySelector("#next-button"), content: document.querySelector("#step-content"), count: document.querySelector("#step-count"), mode: document.querySelector("#execution-mode"), progress: document.querySelector("#progress-list"), panel: document.querySelector("#processing-panel") };
-const playback = createPlaybackController({ schedule: (callback, delayMs) => window.setTimeout(callback, delayMs), cancel: (id) => window.clearTimeout(id), onFrame: (frame) => { state.frame = frame; renderStep(); } });
+const playback = createPlaybackController({ schedule: (callback, delayMs) => window.setTimeout(callback, delayMs), cancel: (id) => window.clearTimeout(id), onFrame: (frame) => { state.frame = frame; if (state.rendererKind === "vgpu") updateVgpuPresentation(); else renderStep(); }, onStateChange: (timeline) => { state.timeline = timeline; if (!timeline.count) state.timelineFrames = []; updateVgpuControls(); } });
 
 function currentStep() { return LESSON_STEPS[state.lesson.stepIndex]; }
 function formatCount(value) { return new Intl.NumberFormat("en-US").format(value); }
 function visiblePixels() { return Math.min(state.session.config.pixels, 64); }
 function webgpuCapability() { return state.capabilities?.providers?.find(({ id }) => id === "browser-webgpu"); }
 function providerCapability(id) { return state.capabilities?.providers?.find((provider) => provider.id === id); }
+
+function currentWorldScene() {
+  const executionKind = state.selectedBackend === "cpu" ? "cpu" : "gpu";
+  const pixels = visiblePixels();
+  const plannedGroups = Math.ceil(state.session.config.pixels / state.session.config.groupSize);
+  const dispatch = state.session.gpu?.result?.workload?.dispatch ?? { workgroups_x: plannedGroups, workgroups_y: 1, active_workgroups: plannedGroups, dispatched_workgroups: plannedGroups };
+  const maxGroup = Math.max(0, Math.ceil(pixels / state.session.config.groupSize) - 1);
+  state.selectedGroup = Math.min(state.selectedGroup, maxGroup);
+  const scene = projectDispatchWorld({ frame: state.frame, pixels, workloadPixels: state.session.config.pixels, groupSize: state.session.config.groupSize, dispatch: executionKind === "gpu" ? dispatch : null, selectedGroup: state.selectedGroup, executionKind, reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches });
+  if (executionKind === "gpu" && !state.session.gpu) scene.truth.observed = `Configured preview · ${formatCount(state.session.config.pixels)} pixels`;
+  return scene;
+}
+function sceneSummary(scene) { return scene.selection ? `Workgroup ${scene.selection.groupId} connects workers ${scene.selection.workerStart} through ${scene.selection.workerEnd} to pixels ${scene.selection.pixelStart} through ${scene.selection.pixelEnd}.` : scene.truth.observed; }
+function updateVgpuControls() { const seek=document.querySelector("[data-playback-seek]"); if(seek){seek.max=String(Math.max(0,state.timeline.count-1));seek.value=String(Math.max(0,state.timeline.index));} const play=document.querySelector('[data-playback="play"], [data-playback="pause"]'); if(play){play.dataset.playback=state.timeline.running?"pause":"play";play.textContent=state.timeline.running?"Pause":"Play";} }
+function refreshVgpuCode() { if(!state.codeVisible||state.renderedCodePhase===state.frame.phase)return; const panel=document.querySelector(".run-code-panel");if(!panel)return;const selection=buildCodePhaseSelection({executionBackend:state.codeMode,codePlatform:state.codePlatform,phase:state.frame.phase,workerId:state.selectedWorker,pixels:state.session.config.pixels,groupSize:state.session.config.groupSize,gpuHasRun:Boolean(state.session.gpu),cpuHasRun:Boolean(state.session.cpu)});panel.outerHTML=renderRunCodePanel({backend:state.codeMode,codePlatform:state.codePlatform,platforms:GPU_CODE_PLATFORMS,codeVisible:true,codeSelection:selection});state.renderedCodePhase=state.frame.phase;document.querySelector("[data-toggle-code]")?.addEventListener("click",()=>{state.codeVisible=false;renderStep();});document.querySelectorAll("[data-code-platform]").forEach(tab=>{const select=platform=>{state.codePlatform=platform;state.renderedCodePhase=null;refreshVgpuCode();document.querySelector(`[data-code-platform="${platform}"]`)?.focus();};tab.addEventListener("click",()=>select(tab.dataset.codePlatform));tab.addEventListener("keydown",event=>{const index=GPU_CODE_PLATFORMS.indexOf(tab.dataset.codePlatform);const target=event.key==="Home"?0:event.key==="End"?GPU_CODE_PLATFORMS.length-1:event.key==="ArrowRight"?(index+1)%GPU_CODE_PLATFORMS.length:event.key==="ArrowLeft"?(index-1+GPU_CODE_PLATFORMS.length)%GPU_CODE_PLATFORMS.length:null;if(target===null)return;event.preventDefault();select(GPU_CODE_PLATFORMS[target]);});}); }
+function updateVgpuPresentation() { if(state.rendererKind!=="vgpu"||!state.renderer)return; const scene=currentWorldScene(); state.renderer.render(scene); const status=document.querySelector(".vgpu-stage [role=status]"); if(status)status.textContent=sceneSummary(scene); const observed=document.querySelector(".scene-truth strong");if(observed)observed.textContent=scene.truth.observed;const illustrated=document.querySelector(".scene-truth span");if(illustrated)illustrated.textContent=scene.truth.illustrated; refreshVgpuCode(); updateVgpuControls(); }
+async function ensureVgpuRenderer() {
+  if(currentStep()!=="run"||state.rendererKind!=="vgpu")return; const canvas=document.querySelector("[data-vgpu-dispatch]"); if(!canvas)return;
+  if(state.renderer&&state.rendererCanvas===canvas){updateVgpuPresentation();return;} state.renderer?.dispose(); state.renderer=null; state.rendererCanvas=canvas;
+  const result=await mountPreferredRenderer({search:"?renderer=vgpu",canvas,scene:currentWorldScene(),createVgpu:()=>createVgpuDispatchRenderer()});
+  if(result.kind==="legacy"){state.rendererKind="legacy";state.rendererFallback=result.fallbackReason;state.rendererCanvas=null;renderStep();return;} state.renderer=result.renderer;
+  canvas.addEventListener("click",(event)=>{const group=state.renderer?.pick(event.clientX,event.clientY);if(group===null||group===undefined)return;state.selectedGroup=group;state.selectedWorker=group*state.session.config.groupSize;renderStep();});
+  canvas.addEventListener("keydown",(event)=>{const direction=({ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"})[event.key];if(!direction)return;event.preventDefault();const count=Math.ceil(visiblePixels()/state.session.config.groupSize);state.selectedGroup=moveGroupSelection({selectedGroup:state.selectedGroup,direction,columns:4,groupCount:count});state.selectedWorker=state.selectedGroup*state.session.config.groupSize;renderStep();});
+}
 
 function renderProgress() {
   elements.progress.innerHTML = STEP_LABELS.map((label, index) => {
@@ -53,7 +81,8 @@ function runMarkup() {
   const scene = renderProcessingScene({ totalPixels: total, groupSize: state.session.config.groupSize, selectedWorker: state.selectedWorker !== null && state.selectedWorker < total ? state.selectedWorker : null, frame: state.frame, presentation: state.selectedBackend === "webgpu" ? "dispatch-replay" : "simulation" });
   const codeSelection = buildCodePhaseSelection({ executionBackend: state.codeMode, codePlatform: state.codePlatform, phase: state.frame.phase, workerId: state.selectedWorker, pixels: state.session.config.pixels, groupSize: state.session.config.groupSize, gpuHasRun: Boolean(state.session.gpu), cpuHasRun: Boolean(state.session.cpu) });
   const dispatchFacts = state.dispatchReplay && state.session.gpu ? renderDispatchFacts({ replay: state.dispatchReplay, device: state.session.gpu.result.device, pixels: state.session.config.pixels, groupSize: state.session.config.groupSize }) : "";
-  const workspace = renderRunWorkspace({ backend: state.codeMode, codePlatform: state.codePlatform, platforms: GPU_CODE_PLATFORMS, sceneHtml: scene, codeVisible: state.codeVisible, codeSelection, dispatchFacts });
+  const world = state.rendererKind === "vgpu" ? currentWorldScene() : null;
+  const workspace = renderRunWorkspace({ backend: state.codeMode, codePlatform: state.codePlatform, platforms: GPU_CODE_PLATFORMS, sceneHtml: scene, codeVisible: state.codeVisible, codeSelection, dispatchFacts, rendererKind: state.rendererKind, sceneSummary: world ? sceneSummary(world) : "", sceneTruth: world?.truth, timeline: state.timeline });
   const appleReady = providerCapability("apple-mlx")?.available === true;
   const modalReady = providerCapability("modal-triton")?.available === true;
   const { pixels, groupSize } = state.session.config;
@@ -93,10 +122,13 @@ function bindStepEvents() {
   });
   document.querySelector("#run-speed")?.addEventListener("change", (event) => { state.animationSpeed = event.target.value; renderStep(); });
   document.querySelectorAll("#run-pixels, #run-group").forEach((control) => control.addEventListener("change", () => { playback.reset(); state.session = setExperimentConfig(state.session, { pixels: Number(document.querySelector("#run-pixels").value), groupSize: Number(document.querySelector("#run-group").value) }); state.dispatchReplay = null; state.frame = sceneFrameState(); state.configNotice = "Results cleared — run CPU and GPU again."; renderStep(); }));
+  document.querySelectorAll("[data-playback]").forEach((button)=>button.addEventListener("click",()=>{if(button.dataset.playback==="pause"){playback.pause();return;}if(!state.timelineFrames.length)return;if(button.dataset.playback==="restart"){playback.load(state.timelineFrames);playback.seek(0);return;}playback.play(state.timelineFrames,ANIMATION_DELAYS[state.animationSpeed][state.selectedBackend==="cpu"?"cpu":"gpu"]);}));
+  document.querySelector("[data-playback-seek]")?.addEventListener("input",(event)=>{if(!state.timelineFrames.length)return;playback.seek(Number(event.target.value));});
   bindWorkerEvents();
 }
 
 function playFrames(frames) {
+  state.timelineFrames = [...frames];
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { state.frame = frames.at(-1); renderStep(); return; }
   playback.play(frames, ANIMATION_DELAYS[state.animationSpeed][state.selectedBackend === "cpu" ? "cpu" : "gpu"]);
 }
@@ -135,12 +167,14 @@ function renderStep() {
   const focusedWorker = document.activeElement?.dataset?.gpuWorker;
   const focusedPlatform = document.activeElement?.dataset?.codePlatform;
   const step = currentStep();
+  if (step !== "run" && state.renderer) { state.renderer.dispose(); state.renderer = null; state.rendererCanvas = null; }
   const copy = getLessonCopy(step);
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
   elements.mode.textContent = step === "configure" ? "Question + configuration" : step === "run" ? "Real CPU + GPU runs" : "Measured comparison";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${({ configure: configureMarkup, run: runMarkup, compare: compareMarkup })[step]()}`;
   elements.panel.hidden = true; elements.back.disabled = state.lesson.stepIndex === 0 || Boolean(state.running); elements.next.disabled = Boolean(state.running) || (step === "run" && !canCompare(state.session)); elements.next.textContent = step === "compare" ? "Finish lesson ✓" : step === "run" ? "Compare results →" : "Start experiment →";
   renderProgress(); bindStepEvents();
+  void ensureVgpuRenderer();
   if (focusedWorker !== undefined) document.querySelector(`[data-gpu-worker="${focusedWorker}"]`)?.focus();
   if (focusedPlatform !== undefined) document.querySelector(`[data-code-platform="${focusedPlatform}"]`)?.focus();
 }
