@@ -37,7 +37,7 @@ The CPU time covers the JavaScript loop, while the GPU time covers browser submi
 
 During the Run stage, change workload size, workers per group, or visualization speed and inspect synchronized code beside the processing view. WebGPU is labeled as the browser execution target; CUDA, Triton, Metal, and HIP are clearly labeled equivalent syntax and are not executed by the browser.
 
-Add `?renderer=vgpu` to the Paint Pixels URL to preview the 2.5D dispatch world during rollout. It uses VGPU only for presentation: the existing raw WebGPU runner remains responsible for the real compute dispatch, output validation, and browser-observed timing. Workgroup waves are labeled illustrative because browsers do not expose physical scheduling.
+The Paint Pixels lesson uses the 2.5D VGPU dispatch world by default. VGPU is presentation only: the raw WebGPU runner remains responsible for the real compute dispatch, output validation, and browser-observed timing. Workgroup waves are labeled illustrative because browsers do not expose physical scheduling. If the canvas renderer cannot initialize, the lesson falls back to a compact HTML/CSS processing view; add `?renderer=css` to test it directly.
 
 ## Run a real Metal kernel on Apple silicon
 
@@ -63,7 +63,7 @@ The Apple and NVIDIA paths share one result contract while keeping their executi
 - Guided expedition homepage and shared lesson catalog
 - Available/upcoming trail map
 - Three visual stages: Configure, Run, and Compare
-- Feature-flagged 2.5D VGPU dispatch visualization with an accessible fallback
+- Default 2.5D VGPU dispatch visualization with an accessible HTML/CSS fallback
 - Synchronized CPU and GPU processing animations with optional code
 - Shared-scale timing chart with honest below-resolution states
 - Accessible 8×8 thread-to-pixel work map

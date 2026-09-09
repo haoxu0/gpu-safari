@@ -21,7 +21,7 @@ test("a selected GPU worker highlights the shader invocation", () => {
 
 test("GPU syntax tabs distinguish running code from equivalents", () => {
   const selection = buildCodePhaseSelection({ executionBackend:"webgpu", codePlatform:"triton", phase:"work", workerId:0, pixels:65536, groupSize:16, gpuHasRun:true });
-  const html = renderRunWorkspace({ backend:"webgpu", codePlatform:"triton", sceneHtml:"<svg></svg>", codeVisible:true, codeSelection:selection, platforms:["webgpu","cuda","triton","metal","hip"] });
+  const html = renderRunWorkspace({ backend:"webgpu", codePlatform:"triton", sceneHtml:'<div class="css-scene"></div>', codeVisible:true, codeSelection:selection, platforms:["webgpu","cuda","triton","metal","hip"] });
   assert.match(html, /role="tablist"/); assert.match(html, /aria-selected="true"/);
   assert.match(html, /Equivalent syntax · not executed/); assert.match(html, /role="tabpanel"/);
   assert.match(html, /tabindex="0"/); assert.match(html, /tabindex="-1"/);
@@ -30,8 +30,8 @@ test("GPU syntax tabs distinguish running code from equivalents", () => {
 });
 
 test("code can be hidden without removing the processing visualization", () => {
-  const hidden = renderRunWorkspace({ backend: "cpu", sceneHtml: "<svg>scene</svg>", codeVisible: false, codeSelection: null });
-  assert.match(hidden, /<svg>scene<\/svg>/);
+  const hidden = renderRunWorkspace({ backend: "cpu", sceneHtml: '<div class="css-scene">scene</div>', codeVisible: false, codeSelection: null });
+  assert.match(hidden, /class="css-scene">scene/);
   assert.doesNotMatch(hidden, /run-code-panel/);
   assert.match(hidden, /Show code/);
 });
