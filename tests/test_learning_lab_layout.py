@@ -147,6 +147,17 @@ def test_public_site_has_home_trails_and_nested_lesson_routes():
     assert 'href="../../"' in lesson
 
 
+def test_parallel_reduction_is_a_platform_neutral_canvas_lesson():
+    html = (LAB / "learn" / "parallel-reduction" / "index.html").read_text()
+    app = (LAB / "src" / "reduction-app.mjs").read_text()
+
+    assert "Add It Up Together" in html
+    assert 'src="../../src/reduction-app.mjs"' in html
+    assert 'aria-label="Lesson progress"' in html
+    assert "drawReductionFrame" in app
+    assert "<svg" not in html
+
+
 def test_homepage_leads_with_guided_expedition_and_optional_hardware():
     home = (LAB / "index.html").read_text()
 

@@ -11,6 +11,7 @@ export default defineConfig({
         home: fromRoot("./index.html"),
         trails: fromRoot("./trails/index.html"),
         paintPixels: fromRoot("./learn/paint-pixels/index.html"),
+        parallelReduction: fromRoot("./learn/parallel-reduction/index.html"),
       },
     },
   },
