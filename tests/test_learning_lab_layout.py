@@ -112,15 +112,16 @@ def test_repository_readme_links_to_the_beginner_learning_lab():
 def test_learning_lab_has_real_gpu_stage_and_explicit_modal_confirmation():
     html = (LAB / "learn" / "paint-pixels" / "index.html").read_text()
     app = (LAB / "src" / "app.mjs").read_text()
+    run_controls = (LAB / "src" / "run-controls.mjs").read_text()
 
     assert 'id="execution-mode"' in html
     assert '"Real CPU + GPU runs"' in app
     assert 'from "./webgpu-runner.mjs"' in app
-    assert 'data-run="cpu"' in app
-    assert 'data-run="webgpu"' in app
+    assert 'data-run="cpu"' in run_controls
+    assert 'data-run="webgpu"' in run_controls
     assert 'data-prediction="${value}" aria-pressed="${state.session.prediction === value}"' in app
-    assert "Run on CPU" in app
-    assert "Run on my GPU" in app
+    assert "Run CPU" in run_controls
+    assert "Run GPU" in run_controls
     assert "Real dispatch and validated result" in (LAB / "src" / "dispatch-replay.mjs").read_text()
     assert "Compare results" in app
     assert 'runWebGpuPaint({ pixels: launchConfig.pixels, groupSize: launchConfig.groupSize })' in app
