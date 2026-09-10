@@ -28,3 +28,12 @@ test("lesson navigation labels do not wrap on phone layouts", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   assert.match(styles, /\.lesson-controls \.button[^}]*white-space:\s*nowrap/);
 });
+
+test("the production build includes the parallel reduction lesson", async () => {
+  const config = await readFile(new URL("../vite.config.mjs", import.meta.url), "utf8");
+  const page = await readFile(new URL("../learn/parallel-reduction/index.html", import.meta.url), "utf8");
+  assert.match(config, /parallelReduction/);
+  assert.match(config, /learn\/parallel-reduction\/index\.html/);
+  assert.match(page, /Add It Up Together/);
+  assert.match(page, /src="\.\.\/\.\.\/src\/reduction-app\.mjs"/);
+});
