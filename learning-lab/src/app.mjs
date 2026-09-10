@@ -13,6 +13,7 @@ import { canCompare, createExperimentSession, recordCpuRun, recordGpuRun, setExp
 import { projectDispatchWorld, moveGroupSelection } from "./dispatch-world-model.mjs";
 import { createVgpuDispatchRenderer } from "./vgpu-dispatch-renderer.mjs";
 import { mountPreferredRenderer, requestedRenderer } from "./renderer-selection.mjs";
+import { renderExecutionCards } from "./run-controls.mjs";
 
 const GROUP_SIZES = [4, 8, 16, 32];
 const PREDICTIONS = Object.freeze([
@@ -75,12 +76,6 @@ function cpuFrames() {
   return buildProcessingTimeline({ totalPixels: total, groupSize: state.session.config.groupSize }).cpu.map(({ pixelIds }) => { painted.push(...pixelIds); return sceneFrameState({ phase: "cpu", cpuPainted: painted }); });
 }
 
-function runStatus() {
-  if (state.running) return `<div class="run-status is-running">Running on ${state.running === "cpu" ? "CPU" : "GPU"}…</div>`;
-  if (state.error) return `<div class="run-status is-error">${state.error}</div>`;
-  return `<div class="run-status"><span>${state.session.cpu ? "✓ CPU measured" : "CPU not run"}</span><span>${state.session.gpu ? "✓ GPU measured" : "GPU not run"}</span></div>`;
-}
-
 function runMarkup() {
   const total = visiblePixels();
   const scene = renderProcessingScene({ totalPixels: total, groupSize: state.session.config.groupSize, selectedWorker: state.selectedWorker !== null && state.selectedWorker < total ? state.selectedWorker : null, frame: state.frame, presentation: state.selectedBackend === "webgpu" ? "dispatch-replay" : "simulation" });
@@ -93,8 +88,8 @@ function runMarkup() {
   const { pixels, groupSize } = state.session.config;
   const settings = `<div class="run-settings"><label>Pixels<select id="run-pixels" ${state.running ? "disabled" : ""}>${RACE_WORKLOADS.map((v) => `<option value="${v}" ${v === pixels ? "selected" : ""}>${formatCount(v)}</option>`).join("")}</select></label><label>Workers per group<select id="run-group" ${state.running ? "disabled" : ""}>${GROUP_SIZES.map((v) => `<option value="${v}" ${v === groupSize ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Visualization speed<select id="run-speed">${Object.keys(ANIMATION_DELAYS).map((v) => `<option value="${v}" ${v === state.animationSpeed ? "selected" : ""}>${v}</option>`).join("")}</select></label></div>`;
   const gpuCapability = webgpuCapability();
-  const explore = `<button class="button button-quiet" type="button" data-explore-gpu>Explore GPU syntax</button>${gpuCapability?.available ? "" : '<p class="provider-status">WebGPU is unavailable here, but equivalent syntax remains explorable.</p>'}`;
-  return `<div class="run-stage"><p class="lede">Run each path separately. Animation follows the operation; measured time comes from the browser.</p>${settings}${state.configNotice ? `<p class="config-notice">${state.configNotice}</p>` : ""}<div class="run-actions"><button class="button button-quiet" type="button" data-run="cpu" ${state.running ? "disabled" : ""}>Run on CPU</button><button class="button button-primary" type="button" data-run="webgpu" ${gpuCapability?.available && !state.running ? "" : "disabled"}>Run on my GPU</button>${explore}</div>${runStatus()}${workspace}<details class="advanced-runs"><summary>Other hardware</summary><div class="advanced-provider-grid"><button class="button button-quiet" type="button" data-run-provider="apple-mlx" ${appleReady && !state.running ? "" : "disabled"}>Run on your Apple GPU</button><label class="cost-confirm"><input id="modal-confirm" type="checkbox"> I understand a Modal NVIDIA run is billable.</label><button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.running ? "" : "disabled"}>Run once on Modal</button><p class="provider-status">${state.otherStatus ?? "Optional hardware runs do not change the browser comparison."}</p></div></details></div>`;
+  const targets = renderExecutionCards({ cpuRun: state.session.cpu, gpuRun: state.session.gpu, running: state.running, gpuAvailable: gpuCapability?.available === true, codeMode: state.codeMode });
+  return `<div class="run-stage">${settings}${state.configNotice ? `<p class="config-notice">${state.configNotice}</p>` : ""}${targets}${state.error ? `<div class="run-status is-error">${state.error}</div>` : ""}${workspace}<details class="advanced-runs"><summary>Other hardware and syntax</summary><div class="advanced-provider-grid"><p class="other-platforms">Use the GPU card's View code control, then choose CUDA, Triton, Metal, HIP, or WebGPU beside the visualization.</p><button class="button button-quiet" type="button" data-run-provider="apple-mlx" ${appleReady && !state.running ? "" : "disabled"}>Run on your Apple GPU</button><label class="cost-confirm"><input id="modal-confirm" type="checkbox"> I understand a Modal NVIDIA run is billable.</label><button class="button button-quiet" type="button" data-run-provider="modal-triton" ${modalReady && !state.running ? "" : "disabled"}>Run once on Modal</button><p class="provider-status">${state.otherStatus ?? "Optional hardware runs do not change the browser comparison."}</p></div></details></div>`;
 }
 
 function compareMarkup() {
@@ -117,7 +112,7 @@ function bindStepEvents() {
   document.querySelectorAll("#experiment-pixels, #experiment-group").forEach((control) => control.addEventListener("change", () => { state.session = setExperimentConfig(state.session, { pixels: Number(document.querySelector("#experiment-pixels").value), groupSize: Number(document.querySelector("#experiment-group").value) }); state.dispatchReplay = null; state.frame = sceneFrameState(); renderStep(); }));
   document.querySelectorAll("[data-prediction]").forEach((button) => button.addEventListener("click", () => { state.session = { ...state.session, prediction: button.dataset.prediction }; renderStep(); }));
   document.querySelectorAll("[data-run]").forEach((button) => button.addEventListener("click", () => runBackend(button.dataset.run)));
-  document.querySelector("[data-explore-gpu]")?.addEventListener("click", () => { state.codeMode = "webgpu"; state.codePlatform = "webgpu"; renderStep(); });
+  document.querySelectorAll("[data-view-code]").forEach((button) => button.addEventListener("click", () => { state.codeMode = button.dataset.viewCode; state.selectedBackend = button.dataset.viewCode; state.codePlatform = "webgpu"; state.codeVisible = true; renderStep(); }));
   document.querySelectorAll("[data-run-provider]").forEach((button) => button.addEventListener("click", () => runOtherProvider(button.dataset.runProvider)));
   document.querySelector("[data-toggle-code]")?.addEventListener("click", () => { state.codeVisible = !state.codeVisible; renderStep(); });
   document.querySelectorAll("[data-code-platform]").forEach((tab) => {
@@ -174,6 +169,7 @@ function renderStep() {
   const step = currentStep();
   if (step !== "run" && state.renderer) { state.renderer.dispose(); state.renderer = null; state.rendererCanvas = null; }
   const copy = getLessonCopy(step);
+  document.querySelector(".lesson-stage").dataset.step = step;
   elements.count.textContent = `Step ${state.lesson.stepIndex + 1} of ${LESSON_STEPS.length}`;
   elements.mode.textContent = step === "configure" ? "Question + configuration" : step === "run" ? "Real CPU + GPU runs" : "Measured comparison";
   elements.content.innerHTML = `<div class="step-heading"><span class="eyebrow">${copy.eyebrow}</span><h1 id="step-title">${copy.title}</h1></div>${({ configure: configureMarkup, run: runMarkup, compare: compareMarkup })[step]()}`;

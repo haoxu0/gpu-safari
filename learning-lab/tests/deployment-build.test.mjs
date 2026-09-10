@@ -23,3 +23,8 @@ test("the lesson asks for a learner guess without internal optional-field wordin
   assert.match(app, /GPU wins/);
   assert.doesNotMatch(app, /Optional prediction/);
 });
+
+test("lesson navigation labels do not wrap on phone layouts", async () => {
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.lesson-controls \.button[^}]*white-space:\s*nowrap/);
+});
