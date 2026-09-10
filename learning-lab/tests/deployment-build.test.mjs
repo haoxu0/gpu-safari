@@ -15,3 +15,11 @@ test("GitHub Pages deploys the built website", async () => {
   assert.match(workflow, /npm --prefix learning-lab run build/);
   assert.match(workflow, /path: learning-lab\/dist/);
 });
+
+test("the lesson asks for a learner guess without internal optional-field wording", async () => {
+  const app = await readFile(new URL("../src/app.mjs", import.meta.url), "utf8");
+  assert.match(app, /Make a guess/);
+  assert.match(app, /CPU wins/);
+  assert.match(app, /GPU wins/);
+  assert.doesNotMatch(app, /Optional prediction/);
+});

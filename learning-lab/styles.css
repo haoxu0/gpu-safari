@@ -83,25 +83,26 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .cpu-lane header > span { color: #69a9ea; }
 .processing-lane header strong { font-size: 13px; }
 .processing-lane header small { color: #9eada3; font-size: 10px; }
-.processing-lane svg { display: block; width: 100%; max-height: 300px; margin-top: 10px; overflow: visible; }
-.cpu-worker circle { fill: #2868a9; }
-.cpu-worker text, .gpu-worker text { fill: #eef7f1; font: 8px ui-monospace, monospace; pointer-events: none; }
-.scene-arrow { fill: none; stroke: #69a9ea; stroke-width: 2; }
-.scene-job { fill: #17201b; stroke: #303b35; transition: fill 180ms ease, stroke 180ms ease; }
-.scene-job.is-painted { fill: #2868a9; stroke: #69a9ea; }
-.scene-job.is-selected, .pixel-link.is-selected { stroke: #eef7f1; stroke-width: 3; }
+.cpu-process { display: grid; justify-items: center; gap: 8px; margin-top: 16px; }
+.cpu-worker { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #2868a9; color: #eef7f1; font: 750 10px ui-monospace, monospace; }
+.scene-arrow { color: #69a9ea; line-height: 1; }
+.job-map { width: 100%; display: grid; grid-template-columns: repeat(8, minmax(10px, 1fr)); gap: 5px; }
+.scene-job { aspect-ratio: 1; min-width: 0; border: 1px solid #303b35; border-radius: 4px; background: #17201b; transition: background 180ms ease, border-color 180ms ease; }
+.scene-job.is-painted { border-color: #69a9ea; background: #2868a9; }
+.scene-job.is-selected, .pixel-link.is-selected { border-color: #eef7f1; box-shadow: inset 0 0 0 1px #eef7f1; }
 .phase-path { display: grid; grid-template-columns: repeat(7, auto); align-items: center; gap: 4px; margin-top: 12px; overflow-x: auto; color: #617067; }
 .process-phase { min-height: 30px; padding: 5px 7px; border: 1px solid #303b35; border-radius: 7px; background: #151c18; color: #9eada3; font-size: 9px; white-space: nowrap; }
 .process-phase.is-current { border-color: #55d895; background: #173b2a; color: #eef7f1; }
-.workgroup-tile rect { fill: #122d20; stroke: #326e4e; }
-.workgroup-tile text { fill: #55d895; font: 7px ui-monospace, monospace; letter-spacing: .04em; }
-.gpu-worker rect { fill: #173b2a; stroke: #55d895; transition: fill 180ms ease, filter 180ms ease; }
-.gpu-worker.is-painted rect { fill: #55d895; filter: drop-shadow(0 0 5px rgba(85,216,149,.55)); }
+.workgroup-map { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.workgroup-tile { min-width: 0; padding: 8px; border: 1px solid #326e4e; border-radius: 8px; background: #122d20; }
+.workgroup-tile > span { display: block; margin-bottom: 7px; overflow: hidden; color: #55d895; font: 7px ui-monospace, monospace; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.worker-map { display: grid; grid-template-columns: repeat(8, minmax(5px, 1fr)); gap: 3px; }
+.gpu-worker { width: 100%; min-width: 0; aspect-ratio: 1; padding: 0; border: 1px solid #55d895; border-radius: 3px; background: #173b2a; transition: background 180ms ease, filter 180ms ease; }
+.gpu-worker.is-painted { background: #55d895; filter: drop-shadow(0 0 5px rgba(85,216,149,.55)); }
 .gpu-worker.is-masked { opacity: .34; pointer-events: none; }
-.gpu-worker.is-masked rect { fill: transparent; stroke-dasharray: 3 2; }
-.gpu-worker.is-selected rect { stroke: #eef7f1; stroke-width: 3; }
-.gpu-worker:focus { outline: none; }
-.gpu-worker:focus rect { stroke: #f2b84b; stroke-width: 3; }
+.gpu-worker.is-masked { border-style: dashed; background: transparent; }
+.gpu-worker.is-selected { border-color: #eef7f1; box-shadow: 0 0 0 2px #eef7f1; }
+.gpu-worker:focus-visible { outline: 2px solid #f2b84b; outline-offset: 1px; }
 .pixel-link-map { display: grid; grid-template-columns: repeat(16, minmax(16px, 1fr)); gap: 3px; margin-top: 13px; }
 .pixel-link { min-height: 20px; display: grid; place-items: center; border: 1px solid #303b35; border-radius: 3px; color: #9eada3; font: 8px ui-monospace, monospace; }
 .pixel-link.is-selected { color: #eef7f1; background: #173b2a; border-color: #eef7f1; }
@@ -197,6 +198,7 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .lesson-stage { border-radius: 16px; }
   .step-content { min-height: 390px; }
   .processing-lanes { grid-template-columns: 1fr; }
+  .workgroup-map { grid-template-columns: 1fr; }
   .pixel-link-map { grid-template-columns: repeat(8, minmax(16px, 1fr)); }
   .config-grid { grid-template-columns: 1fr; }
   .run-actions { flex-direction: column; }

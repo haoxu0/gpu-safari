@@ -15,10 +15,15 @@ import { createVgpuDispatchRenderer } from "./vgpu-dispatch-renderer.mjs";
 import { mountPreferredRenderer, requestedRenderer } from "./renderer-selection.mjs";
 
 const GROUP_SIZES = [4, 8, 16, 32];
+const PREDICTIONS = Object.freeze([
+  { value: "cpu", label: "CPU wins" },
+  { value: "gpu", label: "GPU wins" },
+  { value: "unsure", label: "Not sure" },
+]);
 const STEP_LABELS = ["Question", "Run", "Compare"];
 const ANIMATION_DELAYS = Object.freeze({ slow: { cpu: 60, gpu: 360 }, normal: { cpu: 24, gpu: 180 }, instant: { cpu: 0, gpu: 0 } });
-const wantsVgpu = requestedRenderer(window.location.search) === "vgpu";
-const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codeMode: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, selectedGroup: 0, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null, rendererKind: wantsVgpu ? "vgpu" : "legacy", renderer: null, rendererCanvas: null, rendererFallback: null, renderedCodePhase: null, timeline: { index: 0, count: 1, running: false }, timelineFrames: [] };
+const preferredRenderer = requestedRenderer(window.location.search);
+const state = { lesson: createLessonState(), session: createExperimentSession({}), selectedBackend: "cpu", codeMode: "cpu", codePlatform: "webgpu", animationSpeed: "normal", configNotice: null, selectedWorker: null, selectedGroup: 0, frame: sceneFrameState(), dispatchReplay: null, codeVisible: !window.matchMedia("(max-width: 760px)").matches, running: null, error: null, otherStatus: null, capabilities: null, rendererKind: preferredRenderer, renderer: null, rendererCanvas: null, rendererFallback: null, renderedCodePhase: null, timeline: { index: 0, count: 1, running: false }, timelineFrames: [] };
 const elements = { back: document.querySelector("#back-button"), next: document.querySelector("#next-button"), content: document.querySelector("#step-content"), count: document.querySelector("#step-count"), mode: document.querySelector("#execution-mode"), progress: document.querySelector("#progress-list"), panel: document.querySelector("#processing-panel") };
 const playback = createPlaybackController({ schedule: (callback, delayMs) => window.setTimeout(callback, delayMs), cancel: (id) => window.clearTimeout(id), onFrame: (frame) => { state.frame = frame; if (state.rendererKind === "vgpu") updateVgpuPresentation(); else renderStep(); }, onStateChange: (timeline) => { state.timeline = timeline; if (!timeline.count) state.timelineFrames = []; updateVgpuControls(); } });
 
@@ -47,7 +52,7 @@ async function ensureVgpuRenderer() {
   if(currentStep()!=="run"||state.rendererKind!=="vgpu")return; const canvas=document.querySelector("[data-vgpu-dispatch]"); if(!canvas)return;
   if(state.renderer&&state.rendererCanvas===canvas){updateVgpuPresentation();return;} state.renderer?.dispose(); state.renderer=null; state.rendererCanvas=canvas;
   const result=await mountPreferredRenderer({search:"?renderer=vgpu",canvas,scene:currentWorldScene(),createVgpu:()=>createVgpuDispatchRenderer()});
-  if(result.kind==="legacy"){state.rendererKind="legacy";state.rendererFallback=result.fallbackReason;state.rendererCanvas=null;renderStep();return;} state.renderer=result.renderer;
+  if(result.kind==="css"){state.rendererKind="css";state.rendererFallback=result.fallbackReason;state.rendererCanvas=null;renderStep();return;} state.renderer=result.renderer;
   canvas.addEventListener("click",(event)=>{const group=state.renderer?.pick(event.clientX,event.clientY);if(group===null||group===undefined)return;state.selectedGroup=group;state.selectedWorker=group*state.session.config.groupSize;renderStep();});
   canvas.addEventListener("keydown",(event)=>{const direction=({ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"})[event.key];if(!direction)return;event.preventDefault();const count=Math.ceil(visiblePixels()/state.session.config.groupSize);state.selectedGroup=moveGroupSelection({selectedGroup:state.selectedGroup,direction,columns:4,groupCount:count});state.selectedWorker=state.selectedGroup*state.session.config.groupSize;renderStep();});
 }
@@ -61,7 +66,7 @@ function renderProgress() {
 
 function configureMarkup() {
   const { pixels, groupSize } = state.session.config;
-  return `<div class="experiment-question"><p class="lede">Will one CPU loop or many GPU workers paint the same pixels differently?</p><div class="config-grid"><label><span>Pixels</span><select id="experiment-pixels">${RACE_WORKLOADS.map((value) => `<option value="${value}" ${pixels === value ? "selected" : ""}>${formatCount(value)}</option>`).join("")}</select></label><label><span>GPU workgroup</span><select id="experiment-group">${GROUP_SIZES.map((value) => `<option value="${value}" ${groupSize === value ? "selected" : ""}>${value} workers</option>`).join("")}</select></label></div><fieldset class="prediction"><legend>Optional prediction</legend>${["cpu", "gpu", "unsure"].map((value) => `<button type="button" class="button button-quiet ${state.session.prediction === value ? "is-selected" : ""}" data-prediction="${value}" aria-pressed="${state.session.prediction === value}">${value === "unsure" ? "Not sure" : value.toUpperCase()}</button>`).join("")}</fieldset><div class="question-preview"><span>CPU</span><strong>one pixel at a time</strong><span>GPU</span><strong>${formatCount(Math.ceil(pixels / groupSize))} active workgroups</strong></div></div>`;
+  return `<div class="experiment-question"><p class="lede">Will one CPU loop or many GPU workers paint the same pixels differently?</p><div class="config-grid"><label><span>Pixels</span><select id="experiment-pixels">${RACE_WORKLOADS.map((value) => `<option value="${value}" ${pixels === value ? "selected" : ""}>${formatCount(value)}</option>`).join("")}</select></label><label><span>GPU workgroup</span><select id="experiment-group">${GROUP_SIZES.map((value) => `<option value="${value}" ${groupSize === value ? "selected" : ""}>${value} workers</option>`).join("")}</select></label></div><fieldset class="prediction"><legend>Make a guess</legend>${PREDICTIONS.map(({ value, label }) => `<button type="button" class="button button-quiet ${state.session.prediction === value ? "is-selected" : ""}" data-prediction="${value}" aria-pressed="${state.session.prediction === value}">${label}</button>`).join("")}</fieldset><div class="question-preview"><span>CPU</span><strong>one pixel at a time</strong><span>GPU</span><strong>${formatCount(Math.ceil(pixels / groupSize))} active workgroups</strong></div></div>`;
 }
 
 function cpuFrames() {
