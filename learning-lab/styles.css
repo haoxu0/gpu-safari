@@ -208,6 +208,30 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
 .reduction-run-card .button { grid-column: 1 / -1; margin-top: 5px; }
 .reduction-run-card small { grid-column: 1 / -1; padding-top: 7px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; text-transform: uppercase; }
 .reduction-stage { padding: clamp(12px, 2vw, 18px); display: grid; gap: 11px; border: 1px solid var(--line); border-radius: 16px; background: light-dark(#101713, #080d0a); }
+.reduction-cycle { margin: 0; color: #a9bbb3; font: 750 10px ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.thread-panel { min-width: 0; padding: 14px; display: grid; gap: 12px; border: 1px solid #2b4237; border-radius: 12px; background: #0b1510; color: #eff8f3; }
+.thread-panel-heading { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.thread-panel-heading strong { font-size: 13px; }
+.thread-panel-heading span { color: #9eada3; font: 10px ui-monospace, monospace; text-transform: uppercase; }
+.thread-phase-path { display: grid; grid-template-columns: repeat(7, auto); gap: 6px; align-items: center; justify-content: start; color: #758a80; font: 700 10px ui-monospace, monospace; text-transform: uppercase; }
+.thread-phase { padding: 5px 7px; border: 1px solid #293b32; border-radius: 5px; }
+.thread-phase.is-current { border-color: #55d895; background: #173b2a; color: #7eecae; }
+.thread-groups { min-width: 0; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.thread-group { flex: 0 0 auto; padding: 8px; display: grid; gap: 7px; border: 1px solid #22372d; border-radius: 8px; }
+.thread-group > span { color: #81968c; font: 700 9px ui-monospace, monospace; }
+.thread-group > div { display: flex; gap: 5px; }
+.thread-chip { width: 36px; height: 32px; padding: 0; border: 1px solid #415349; border-radius: 6px; background: #111d17; color: #aebdb5; font: 750 10px ui-monospace, monospace; cursor: pointer; }
+.thread-chip.is-active { border-color: #55d895; background: #173b2a; color: #86efb5; }
+.thread-chip.is-masked { border-style: dashed; color: #77877f; }
+.thread-chip.is-waiting { border-color: #f2b84b; background: #342a13; color: #ffd77e; }
+.thread-chip[aria-pressed="true"] { outline: 2px solid #f2b84b; outline-offset: 2px; }
+.thread-chip:focus-visible { outline: 3px solid #eff8f3; outline-offset: 2px; }
+.thread-legend { display: flex; flex-wrap: wrap; gap: 12px; color: #96a89f; font: 9px ui-monospace, monospace; }
+.thread-legend span::before { content: ""; width: 7px; height: 7px; margin-right: 5px; display: inline-block; border: 1px solid #596a62; border-radius: 2px; }
+.thread-legend .is-active::before { border-color: #55d895; background: #173b2a; }
+.thread-legend .is-masked::before { border-style: dashed; }
+.thread-legend .is-waiting::before { border-color: #f2b84b; background: #342a13; }
+.thread-detail, .cpu-thread-panel p { min-height: 1.5em; margin: 0; color: #d7e6de; font: 11px/1.5 ui-monospace, monospace; }
 .reduction-stage canvas { width: 100%; min-height: 360px; display: block; border-radius: 10px; background: #07110e; }
 .reduction-stage canvas:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
 .reduction-model-label { margin: 0; color: #9eada3; font: 10px ui-monospace, monospace; }
@@ -229,6 +253,8 @@ h1 { max-width: 760px; margin: 10px 0 28px; font-size: clamp(34px, 5vw, 58px); l
   .reduction-config, .reduction-run-cards { grid-template-columns: 1fr; }
   .number-strip { grid-template-columns: repeat(8, minmax(0, 1fr)); padding: 12px; }
   .reduction-stage canvas { min-height: 300px; }
+  .thread-panel-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .thread-phase-path { grid-template-columns: auto auto auto auto auto auto auto; overflow-x: auto; }
   .reduction-playback { grid-template-columns: 1fr 1fr; }
   .reduction-playback input { grid-column: 1 / -1; }
   .depth-chart > div { grid-template-columns: 42px minmax(0, 1fr); }
