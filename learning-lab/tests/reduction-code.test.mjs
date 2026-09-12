@@ -15,6 +15,15 @@ test("syntax selection is secondary to execution", () => {
   assert.match(html, /role="tabpanel" id="reduction-code-body"/);
   assert.match(html, /aria-selected="true" tabindex="0"/);
   assert.match(html, /aria-selected="false" tabindex="-1"/);
-  assert.match(html, /Syntax view/);
+  assert.match(html, /matches this animation/);
   assert.doesNotMatch(html, /Run CUDA/);
+});
+
+test("adjacent-pair syntax follows the configured teaching group size", () => {
+  const cuda = reductionCode("cuda", 8);
+  assert.match(cuda, /scratch\[2\]\[8\]/);
+  assert.match(cuda, /src\[2 \* threadIdx\.x\]/);
+  assert.doesNotMatch(cuda, /scratch\[2\]\[16\]/);
+  assert.match(cuda, /blockIdx\.x/);
+  assert.match(renderReductionCodePanel("metal", 8), /lanes may be mapped differently/);
 });

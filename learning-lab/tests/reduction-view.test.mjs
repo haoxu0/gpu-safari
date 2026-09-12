@@ -8,11 +8,12 @@ const state = {
   groupSize: 8,
   prediction: null,
   selectedPath: "gpu",
-  frame: { kind: "gpu", phase: "local", round: 1, values: [4, 5], pairs: [[0, 1], [2, 3]], active: [true, true], laneCount: 2, done: false },
+  frame: { kind: "gpu", phase: "local", microPhase: "read", round: 1, inputs: [3, 1, 4, 1], inputActive: [true, true, true, true], values: [4, 5], pairs: [[0, 1], [2, 3]], active: [true, true], groupIds: [0, 0], groupSize: 4, groupCount: 1, laneCount: 2, done: false },
   timeline: { index: 1, count: 5, running: false },
   codeVisible: false,
   codePlatform: "webgpu",
   viewed: { cpu: false, gpu: true },
+  selectedThread: 0,
 };
 
 test("question step asks one concrete visual puzzle", () => {
@@ -38,6 +39,9 @@ test("run step has CPU and GPU cards around one canvas", () => {
   assert.match(html, /16 values · 8 workers\/group/);
   assert.match(html, /CPU ready/);
   assert.match(html, /GPU viewed/);
+  assert.match(html, /data-reduction-thread="0"/);
+  assert.match(html, /Thread inspector/);
+  assert.match(html, /Read → Add → Write → Barrier/);
   assert.doesNotMatch(html, /<svg/);
 });
 
@@ -50,5 +54,5 @@ test("compare step presents depth as a visual result rather than timing", () => 
 });
 
 test("scene summary announces the active parallel round", () => {
-  assert.equal(reductionSceneSummary(state.frame), "GPU round 1 combines 2 pairs at the same time.");
+  assert.equal(reductionSceneSummary(state.frame), "GPU round 1: active threads read two shared-memory values.");
 });

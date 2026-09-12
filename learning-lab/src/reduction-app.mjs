@@ -1,14 +1,15 @@
 import { createPlaybackController } from "./playback-controller.mjs";
-import { buildCpuReductionFrames, buildGpuReductionFrames, reductionValues } from "./reduction-model.mjs";
+import { buildCpuReductionFrames, reductionValues } from "./reduction-model.mjs";
+import { buildGpuThreadTimeline } from "./reduction-thread-model.mjs";
 import { drawReductionFrame } from "./reduction-canvas.mjs";
 import { REDUCTION_PLATFORMS, renderReductionCodePanel } from "./reduction-code.mjs";
-import { renderReductionStep, reductionSceneSummary } from "./reduction-view.mjs";
+import { renderReductionStep, reductionSceneSummary, renderThreadPanel } from "./reduction-view.mjs";
 
 const STEPS = ["question", "run", "compare"];
 const LABELS = ["Question", "Run", "Compare"];
 const state = {
   stepIndex: 0, count: 16, groupSize: 8, prediction: null, selectedPath: "gpu",
-  frame: buildGpuReductionFrames(reductionValues(16), 8)[0],
+  frame: buildGpuThreadTimeline(reductionValues(16), 8)[0], selectedThread: 0,
   timeline: { index: 0, count: 5, running: false }, timelineFrames: [],
   codeVisible: false, codePlatform: "webgpu", viewed: { cpu: false, gpu: false }, complete: false,
 };
@@ -21,9 +22,19 @@ const elements = {
 function updateRunPresentation() {
   if (state.frame.done) state.viewed[state.frame.kind] = true;
   const canvas = document.querySelector("[data-reduction-canvas]");
-  if (canvas) drawReductionFrame(canvas, state.frame);
+  if (canvas) drawReductionFrame(canvas, state.frame, state.selectedThread);
   const status = document.querySelector("[data-reduction-status]");
   if (status) status.textContent = reductionSceneSummary(state.frame);
+  const threadPanel = document.querySelector("[data-reduction-thread-panel]");
+  if (threadPanel) {
+    const focusedThread = document.activeElement?.dataset?.reductionThread;
+    threadPanel.innerHTML = renderThreadPanel(state.frame, state.selectedThread);
+    threadPanel.querySelectorAll("[data-reduction-thread]").forEach((button) => button.addEventListener("click", () => { state.selectedThread = Number(button.dataset.reductionThread); updateRunPresentation(); }));
+    if (focusedThread !== undefined) {
+      const focusTarget = threadPanel.querySelector(`[data-reduction-thread="${focusedThread}"]`) ?? threadPanel.querySelector('[data-reduction-thread][aria-pressed="true"]');
+      if (focusTarget) { state.selectedThread = Number(focusTarget.dataset.reductionThread); focusTarget.focus(); }
+    }
+  }
   const seek = document.querySelector("[data-reduction-seek]");
   if (seek) { seek.max = String(Math.max(0, state.timeline.count - 1)); seek.value = String(state.timeline.index); }
   const play = document.querySelector('[data-reduction-play="play"], [data-reduction-play="pause"]');
@@ -43,13 +54,13 @@ const playback = createPlaybackController({
 
 function framesFor(path) {
   const values = reductionValues(state.count);
-  return path === "cpu" ? buildCpuReductionFrames(values) : buildGpuReductionFrames(values, state.groupSize);
+  return path === "cpu" ? buildCpuReductionFrames(values) : buildGpuThreadTimeline(values, state.groupSize);
 }
 
 function loadPath(path, autoplay = true) {
   playback.reset(); state.selectedPath = path; state.timelineFrames = framesFor(path); state.frame = state.timelineFrames[0];
   playback.load(state.timelineFrames); render();
-  if (autoplay) playback.play(state.timelineFrames, path === "cpu" ? 150 : 650);
+  if (autoplay) playback.play(state.timelineFrames, path === "cpu" ? 150 : 220);
 }
 
 function renderProgress() {
@@ -60,7 +71,7 @@ function renderProgress() {
 }
 
 function bindQuestion() {
-  const resetRuns = () => { state.viewed = { cpu: false, gpu: false }; state.timelineFrames = []; };
+  const resetRuns = () => { state.viewed = { cpu: false, gpu: false }; state.timelineFrames = []; state.selectedThread = 0; };
   document.querySelector("[data-reduction-count]")?.addEventListener("change", (event) => { state.count = Number(event.target.value); resetRuns(); render(); });
   document.querySelector("[data-reduction-group]")?.addEventListener("change", (event) => { state.groupSize = Number(event.target.value); resetRuns(); render(); });
   document.querySelectorAll("[data-reduction-prediction]").forEach((button) => button.addEventListener("click", () => { state.prediction = button.dataset.reductionPrediction; render(); }));
@@ -70,7 +81,7 @@ function bindRun() {
   document.querySelectorAll("[data-reduction-run]").forEach((button) => button.addEventListener("click", () => loadPath(button.dataset.reductionRun)));
   document.querySelector("[data-reduction-code]")?.addEventListener("click", () => { state.codeVisible = !state.codeVisible; render(); });
   const codePanel = document.querySelector("[data-reduction-code-panel]");
-  if (codePanel) codePanel.innerHTML = renderReductionCodePanel(state.codePlatform);
+  if (codePanel) codePanel.innerHTML = renderReductionCodePanel(state.codePlatform, state.groupSize);
   const selectPlatform = (platform) => { state.codePlatform = platform; render(); document.querySelector(`[data-reduction-platform="${platform}"]`)?.focus(); };
   document.querySelectorAll("[data-reduction-platform]").forEach((button) => {
     button.addEventListener("click", () => selectPlatform(button.dataset.reductionPlatform));
@@ -84,7 +95,7 @@ function bindRun() {
   document.querySelectorAll("[data-reduction-play]").forEach((button) => button.addEventListener("click", () => {
     if (button.dataset.reductionPlay === "pause") { playback.pause(); return; }
     if (button.dataset.reductionPlay === "restart") { playback.load(state.timelineFrames); playback.seek(0); return; }
-    playback.play(state.timelineFrames, state.selectedPath === "cpu" ? 150 : 650);
+    playback.play(state.timelineFrames, state.selectedPath === "cpu" ? 150 : 220);
   }));
   document.querySelector("[data-reduction-seek]")?.addEventListener("input", (event) => playback.seek(Number(event.target.value)));
   updateRunPresentation();

@@ -33,10 +33,11 @@ export function buildGpuReductionFrames(values, groupSize) {
   let active = current.map((_, index) => index < values.length);
   let groups = Array.from({ length: groupCount }, (_, group) => current.slice(group * groupSize, (group + 1) * groupSize));
   let activeGroups = Array.from({ length: groupCount }, (_, group) => active.slice(group * groupSize, (group + 1) * groupSize));
-  const frames = [{ kind: "gpu", phase: "ready", round: 0, inputs: [], values: [...current], active: [...active], pairs: [], groupIds: current.map((_, index) => Math.floor(index / groupSize)), laneCount, groupSize, groupCount, done: laneCount === 1 }];
+  const frames = [{ kind: "gpu", phase: "ready", round: 0, inputs: [], inputActive: [], values: [...current], active: [...active], pairs: [], groupIds: current.map((_, index) => Math.floor(index / groupSize)), laneCount, groupSize, groupCount, done: laneCount === 1 }];
   let round = 0;
   while (groups[0].length > 1) {
     const inputs = groups.flat();
+    const inputActive = activeGroups.flat();
     const nextGroups = [];
     const nextActiveGroups = [];
     const pairs = [];
@@ -56,10 +57,11 @@ export function buildGpuReductionFrames(values, groupSize) {
     groups = nextGroups;
     activeGroups = nextActiveGroups;
     current = groups.flat(); active = activeGroups.flat();
-    frames.push({ kind: "gpu", phase: "local", round, inputs, values: [...current], active: [...active], pairs, groupIds: groups.flatMap((group, groupIndex) => group.map(() => groupIndex)), laneCount: current.length, groupSize, groupCount, done: current.length === 1 });
+    frames.push({ kind: "gpu", phase: "local", round, inputs, inputActive, values: [...current], active: [...active], pairs, groupIds: groups.flatMap((group, groupIndex) => group.map(() => groupIndex)), laneCount: current.length, groupSize, groupCount, done: current.length === 1 });
   }
   while (current.length > 1) {
     const inputs = [...current];
+    const inputActive = [...active];
     const next = [];
     const nextActive = [];
     const pairs = [];
@@ -69,7 +71,7 @@ export function buildGpuReductionFrames(values, groupSize) {
       pairs.push([index, index + 1]);
     }
     round += 1; current = next; active = nextActive;
-    frames.push({ kind: "gpu", phase: "merge", round, inputs, values: [...current], active: [...active], pairs, groupIds: current.map(() => 0), laneCount: current.length, groupSize, groupCount, done: current.length === 1 });
+    frames.push({ kind: "gpu", phase: "merge", round, inputs, inputActive, values: [...current], active: [...active], pairs, groupIds: current.map(() => 0), laneCount: current.length, groupSize, groupCount, done: current.length === 1 });
   }
   return frames;
 }
