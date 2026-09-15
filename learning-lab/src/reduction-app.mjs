@@ -2,6 +2,7 @@ import { createPlaybackController } from "./playback-controller.mjs";
 import { buildCpuReductionFrames, reductionValues } from "./reduction-model.mjs";
 import { buildGpuThreadTimeline } from "./reduction-thread-model.mjs";
 import { drawReductionFrame } from "./reduction-canvas.mjs";
+import { flowProgressAt, flowStartForProgress } from "./reduction-flow-model.mjs";
 import { REDUCTION_PLATFORMS, renderReductionCodePanel } from "./reduction-code.mjs";
 import { renderReductionStep, reductionSceneSummary, renderThreadPanel } from "./reduction-view.mjs";
 
@@ -18,11 +19,31 @@ const elements = {
   count: document.querySelector("#step-count"), mode: document.querySelector("#execution-mode"),
   back: document.querySelector("#back-button"), next: document.querySelector("#next-button"),
 };
+let flowAnimationId = null;
+const GPU_PHASE_MS = 900;
+let flowPhaseStartedAt = 0;
+let flowFrozenProgress = 0.72;
+
+function stopFlowAnimation() {
+  if (flowAnimationId !== null) window.cancelAnimationFrame(flowAnimationId);
+  flowAnimationId = null;
+}
+
+function startFlowAnimation() {
+  if (flowAnimationId !== null || !state.timeline.running || state.frame.kind !== "gpu" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const animate = (timestamp) => {
+    const canvas = document.querySelector("[data-reduction-canvas]");
+    if (!canvas || !state.timeline.running || STEPS[state.stepIndex] !== "run" || state.frame.kind !== "gpu") { flowAnimationId = null; return; }
+    drawReductionFrame(canvas, state.frame, state.selectedThread, flowProgressAt(timestamp - flowPhaseStartedAt, GPU_PHASE_MS));
+    flowAnimationId = window.requestAnimationFrame(animate);
+  };
+  flowAnimationId = window.requestAnimationFrame(animate);
+}
 
 function updateRunPresentation() {
   if (state.frame.done) state.viewed[state.frame.kind] = true;
   const canvas = document.querySelector("[data-reduction-canvas]");
-  if (canvas) drawReductionFrame(canvas, state.frame, state.selectedThread);
+  if (canvas) drawReductionFrame(canvas, state.frame, state.selectedThread, state.timeline.running ? flowProgressAt(performance.now() - flowPhaseStartedAt, GPU_PHASE_MS) : flowFrozenProgress);
   const status = document.querySelector("[data-reduction-status]");
   if (status) status.textContent = reductionSceneSummary(state.frame);
   const threadPanel = document.querySelector("[data-reduction-thread-panel]");
@@ -39,6 +60,10 @@ function updateRunPresentation() {
   if (seek) { seek.max = String(Math.max(0, state.timeline.count - 1)); seek.value = String(state.timeline.index); }
   const play = document.querySelector('[data-reduction-play="play"], [data-reduction-play="pause"]');
   if (play) { play.dataset.reductionPlay = state.timeline.running ? "pause" : "play"; play.textContent = state.timeline.running ? "Pause" : "Play"; }
+  const stepBack = document.querySelector('[data-reduction-step="back"]');
+  const stepForward = document.querySelector('[data-reduction-step="forward"]');
+  if (stepBack) stepBack.disabled = state.timeline.index <= 0;
+  if (stepForward) stepForward.disabled = state.timeline.index >= state.timeline.count - 1;
   for (const path of ["cpu", "gpu"]) {
     const pathStatus = document.querySelector(`[data-reduction-path-status="${path}"]`);
     if (pathStatus) pathStatus.textContent = `${path.toUpperCase()} ${state.viewed[path] ? "viewed" : "ready"}`;
@@ -48,9 +73,23 @@ function updateRunPresentation() {
 
 const playback = createPlaybackController({
   schedule: (callback, delay) => window.setTimeout(callback, delay), cancel: (id) => window.clearTimeout(id),
-  onFrame: (frame) => { state.frame = frame; updateRunPresentation(); },
-  onStateChange: (timeline) => { state.timeline = timeline; updateRunPresentation(); },
+  onFrame: (frame) => { state.frame = frame; flowPhaseStartedAt = performance.now(); flowFrozenProgress = playback.isRunning() ? 0 : 0.72; updateRunPresentation(); },
+  onStateChange: (timeline) => {
+    const wasRunning = state.timeline.running;
+    state.timeline = timeline;
+    if (timeline.running) {
+      if (!wasRunning) flowPhaseStartedAt = flowStartForProgress(performance.now(), flowFrozenProgress, GPU_PHASE_MS);
+      startFlowAnimation();
+    } else stopFlowAnimation();
+    updateRunPresentation();
+  },
 });
+
+function playFromBeginning(delay) {
+  playback.seek(0);
+  flowFrozenProgress = 0;
+  playback.resume(delay);
+}
 
 function framesFor(path) {
   const values = reductionValues(state.count);
@@ -60,7 +99,7 @@ function framesFor(path) {
 function loadPath(path, autoplay = true) {
   playback.reset(); state.selectedPath = path; state.timelineFrames = framesFor(path); state.frame = state.timelineFrames[0];
   playback.load(state.timelineFrames); render();
-  if (autoplay) playback.play(state.timelineFrames, path === "cpu" ? 150 : 220);
+  if (autoplay) playFromBeginning(path === "cpu" ? 250 : GPU_PHASE_MS);
 }
 
 function renderProgress() {
@@ -93,22 +132,29 @@ function bindRun() {
     });
   });
   document.querySelectorAll("[data-reduction-play]").forEach((button) => button.addEventListener("click", () => {
-    if (button.dataset.reductionPlay === "pause") { playback.pause(); return; }
+    if (button.dataset.reductionPlay === "pause") { flowFrozenProgress = flowProgressAt(performance.now() - flowPhaseStartedAt, GPU_PHASE_MS); playback.pause(); return; }
     if (button.dataset.reductionPlay === "restart") { playback.load(state.timelineFrames); playback.seek(0); return; }
-    playback.play(state.timelineFrames, state.selectedPath === "cpu" ? 150 : 220);
+    if (playback.currentIndex() >= 0 && playback.currentIndex() < playback.frameCount() - 1) playback.resume(state.selectedPath === "cpu" ? 250 : GPU_PHASE_MS);
+    else playFromBeginning(state.selectedPath === "cpu" ? 250 : GPU_PHASE_MS);
+  }));
+  document.querySelectorAll("[data-reduction-step]").forEach((button) => button.addEventListener("click", () => {
+    const delta = button.dataset.reductionStep === "forward" ? 1 : -1;
+    const current = Math.max(0, state.timeline.index);
+    playback.seek(Math.max(0, Math.min(state.timelineFrames.length - 1, current + delta)));
   }));
   document.querySelector("[data-reduction-seek]")?.addEventListener("input", (event) => playback.seek(Number(event.target.value)));
   updateRunPresentation();
 }
 
 function render() {
-  playback.pause(); renderProgress();
+  stopFlowAnimation(); playback.pause(); renderProgress();
   if (state.complete) {
     elements.content.innerHTML = `<div class="completion"><span class="completion-mark">✓</span><h1>Reduction complete.</h1><p>You turned many independent values into one answer by coordinating GPU workers.</p><a class="button button-primary" href="../../trails/">Choose the next trail →</a></div>`;
     elements.count.textContent = "Expedition complete"; elements.mode.textContent = "Parallel reduction"; elements.back.hidden = true; elements.next.hidden = true; return;
   }
   const step = STEPS[state.stepIndex];
-  if (step === "run" && !state.timelineFrames.length) { state.timelineFrames = framesFor(state.selectedPath); state.frame = state.timelineFrames[0]; playback.load(state.timelineFrames); }
+  let autoplay = false;
+  if (step === "run" && !state.timelineFrames.length) { state.timelineFrames = framesFor(state.selectedPath); state.frame = state.timelineFrames[0]; playback.load(state.timelineFrames); autoplay = true; }
   elements.content.innerHTML = renderReductionStep({ ...state, step });
   elements.count.textContent = `Step ${state.stepIndex + 1} of 3`;
   elements.mode.textContent = ["Question + configuration", "Visual CPU + GPU model", "Compare operation depth"][state.stepIndex];
@@ -116,7 +162,7 @@ function render() {
   elements.next.disabled = step === "run" && !(state.viewed.cpu && state.viewed.gpu);
   elements.next.textContent = state.stepIndex === 2 ? "Finish lesson →" : "Continue →";
   if (step === "question") bindQuestion();
-  if (step === "run") bindRun();
+  if (step === "run") { bindRun(); if (autoplay) playFromBeginning(state.selectedPath === "cpu" ? 250 : GPU_PHASE_MS); }
 }
 
 elements.back.addEventListener("click", () => { if (state.stepIndex > 0) { state.stepIndex -= 1; render(); } });

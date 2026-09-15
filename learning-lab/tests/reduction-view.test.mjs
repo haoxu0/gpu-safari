@@ -35,13 +35,15 @@ test("run step has CPU and GPU cards around one canvas", () => {
   assert.match(html, /Run GPU/);
   assert.equal((html.match(/<canvas/g) ?? []).length, 1);
   assert.match(html, /data-reduction-canvas/);
-  assert.match(html, /This is a visual teaching model/);
+  assert.match(html, /Teaching model/);
   assert.match(html, /16 values · 8 workers\/group/);
   assert.match(html, /CPU ready/);
   assert.match(html, /GPU viewed/);
   assert.match(html, /data-reduction-thread="0"/);
   assert.match(html, /Thread inspector/);
-  assert.match(html, /Read → Add → Write → Barrier/);
+  assert.match(html, /Global memory → Threads → Compute → Shared memory/);
+  assert.match(html, /Step back/);
+  assert.match(html, /Step forward/);
   assert.doesNotMatch(html, /<svg/);
 });
 
