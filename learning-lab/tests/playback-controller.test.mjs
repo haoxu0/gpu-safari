@@ -82,6 +82,29 @@ test("pause preserves the current frame and replay starts from frame zero", () =
   assert.deepEqual(seen, ["prepare", "prepare", "submit"]);
 });
 
+test("resume continues after the paused frame without replaying earlier frames", () => {
+  const seen = [];
+  const scheduler = createTestScheduler();
+  const controller = createPlaybackController({ schedule: scheduler.schedule, cancel: scheduler.cancel, onFrame: (frame) => seen.push(frame.phase) });
+  controller.play([{ phase: "read" }, { phase: "add" }, { phase: "write" }], 900);
+  scheduler.flushOne();
+  controller.pause();
+  controller.resume(900);
+  scheduler.flush();
+  assert.deepEqual(seen, ["read", "add", "write"]);
+});
+
+test("a displayed first frame can resume without being emitted twice", () => {
+  const seen = [];
+  const scheduler = createTestScheduler();
+  const controller = createPlaybackController({ schedule: scheduler.schedule, cancel: scheduler.cancel, onFrame: (frame) => seen.push(frame.phase) });
+  controller.load([{ phase: "ready" }, { phase: "read" }]);
+  controller.seek(0);
+  controller.resume(900);
+  scheduler.flush();
+  assert.deepEqual(seen, ["ready", "read"]);
+});
+
 test("zero-delay playback still follows scheduler order", () => {
   const seen = [];
   const scheduler = createTestScheduler();

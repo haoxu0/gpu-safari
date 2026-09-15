@@ -61,8 +61,28 @@ export function createPlaybackController({ schedule, cancel, onFrame, onStateCha
     scheduledId = schedule(advance, delayMs === 0 ? 0 : delayMs);
   }
 
+  function resume(delayMs) {
+    if (!Number.isFinite(delayMs) || delayMs < 0) throw new RangeError("delayMs must be a non-negative number");
+    if (frames.length === 0 || index < 0 || index >= frames.length - 1) return;
+    cancelPending(false);
+    const activeGeneration = generation;
+    running = true;
+    notify();
+    const advance = () => {
+      if (activeGeneration !== generation) return;
+      scheduledId = null;
+      index += 1;
+      onFrame(frames[index]);
+      notify();
+      if (index >= frames.length - 1) { running = false; notify(); return; }
+      scheduledId = schedule(advance, delayMs);
+    };
+    scheduledId = schedule(advance, delayMs);
+  }
+
   return {
     play,
+    resume,
     load,
     seek,
     pause: cancelPending,
